@@ -2,6 +2,8 @@
 
 一个面向乒乓球比赛的**纯静态计分面板**。零依赖、零构建，所有逻辑都写在一个 HTML 文件里，用手机浏览器打开即可当裁判计分台使用。
 
+[示例页面 >](https://dsured.github.io/pingpong-dash/)
+
 ## DEMO
 
 <table>
