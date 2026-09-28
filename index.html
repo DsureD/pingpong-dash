@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏓</text></svg>">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#0C1217">
+<title>乒乓球 · 裁判计分台</title>
+<style>
+:root{
+  --accent:#FF8A3C;
+  --ink:#F2EFE7;
+  --dim:#8CA0AC;
+  --app:#0C1217;
+  --table:#0F4C66;
+  --line:rgba(240,250,255,.88);
+}
+*{
+  box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;
+  scrollbar-width:none;      /* Firefox 隐藏滚动条 */
+  -ms-overflow-style:none;   /* 旧版 Edge */
+}
+*::-webkit-scrollbar{ width:0;height:0;display:none } /* Chrome / Safari / 新 Edge */
+
+::selection{ background:rgba(255,138,60,.3); color:#fff }
+input{ caret-color:var(--accent) }
+
+html,body{height:100%}
+body{
+  background:#07090B;color:var(--ink);
+  font-family:'Noto Sans SC',-apple-system,'PingFang SC','HarmonyOS Sans SC','Microsoft YaHei',sans-serif;
+  overflow:hidden;overscroll-behavior:none;user-select:none;-webkit-user-select:none;
+  touch-action:manipulation;
+}
+button{font:inherit;background:none;border:0;color:inherit;cursor:pointer}
+[hidden]{display:none!important}
+#app{height:100dvh;max-width:480px;margin:0 auto;display:flex;flex-direction:column;background:var(--app)}
+
+/* ── 顶栏 ── */
+#topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:max(10px,env(safe-area-inset-top)) 16px 8px;gap:8px;
+}
+.tb-side{display:flex;align-items:baseline;gap:8px;min-width:0}
+.tb-side.right{flex-direction:row-reverse}
+.tb-name{font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:19vw}
+.tb-games{font-family:'Space Grotesk';font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+.tb-center{text-align:center;flex-shrink:0}
+.tb-gameno{font-size:11px;color:var(--dim);letter-spacing:.18em}
+#dots{display:flex;gap:5px;justify-content:center;margin:5px 0 4px}
+#dots i{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.16)}
+#dots i.done{background:rgba(255,255,255,.72)}
+#dots i.cur{background:var(--accent);animation:breath 1.6s infinite}
+@keyframes breath{50%{opacity:.35}}
+#timer{font-family:'Space Grotesk';font-size:13px;color:var(--dim);letter-spacing:.05em;padding:2px 8px}
+#timer.paused{color:var(--accent)}
+#timer.paused::after{content:'已暂停';font-size:10px;letter-spacing:.1em;margin-left:6px;opacity:.85}
+
+/* ── 球台（默认纵向：上下半台 + 横向球网；.rot = 横置：左右半台 + 立网） ── */
+#table{
+  flex:1;display:flex;flex-direction:column;position:relative;
+  margin:4px 12px 10px;border-radius:14px;
+  background:var(--table);border:2px solid var(--line);
+  box-shadow:inset 0 0 46px rgba(0,18,36,.6), 0 6px 30px rgba(0,0,0,.45);
+  overflow:hidden;
+}
+#table.rot{flex-direction:row}
+.half{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;position:relative;cursor:pointer}
+.half:active{background:rgba(255,255,255,.035)}
+.half::before{ /* 得分闪光（最上层） */
+  content:'';position:absolute;inset:0;pointer-events:none;opacity:0;z-index:2;
+  background:radial-gradient(circle at 50% 50%,rgba(255,255,255,.15),transparent 62%);
+}
+.half.flash::before{animation:fl .5s ease-out}
+@keyframes fl{0%{opacity:0}25%{opacity:1}100%{opacity:0}}
+.half::after{ /* 双打中线：纵向竖线；横置时转横线（最底层） */
+  content:'';position:absolute;top:0;bottom:0;left:50%;width:1px;z-index:0;
+  background:rgba(255,255,255,.13);pointer-events:none;
+}
+#table.rot .half::after{top:50%;bottom:auto;left:0;right:0;width:auto;height:1px}
+#table .half.p1{flex-direction:column-reverse}   /* 纵向：下半台信息置底 */
+#table.rot .half.p1{flex-direction:column}       /* 横置：统一置顶 */
+.meta{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;padding:14px 8px 0}
+#table .half.p1 .meta{padding:0 8px 14px}
+#table.rot .half.p1 .meta{padding:14px 8px 0}
+.sdot{
+  width:9px;height:9px;border-radius:50%;flex-shrink:0;
+  background:radial-gradient(circle at 35% 30%,#FFD9B8,#FF8A3C 60%,#E0651F);
+  box-shadow:0 0 0 3px rgba(255,138,60,.16);
+}
+.pname{
+  font-size:15px;font-weight:500;color:rgba(255,255,255,.92);letter-spacing:.04em;
+  border-bottom:1px dashed rgba(255,255,255,.28);padding-bottom:1px;max-width:60%;cursor:pointer;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.tag{
+  font-size:11px;letter-spacing:.16em;color:var(--accent);
+  border:1px solid rgba(255,138,60,.65);padding:3px 9px 3px 11px;border-radius:999px;
+  animation:tp 1.3s ease-in-out infinite;
+}
+@keyframes tp{50%{opacity:.4}}
+/* 暂停按钮：挂在各自半台的姓名旁，点谁就是谁叫暂停 */
+.tbtn{
+  flex-shrink:0;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;
+  color:var(--dim);background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.13);
+  transition:.15s;
+}
+.tbtn svg{width:12px;height:12px}
+.tbtn:active{background:rgba(255,255,255,.18)}
+.tbtn.used{opacity:.26;pointer-events:none}
+.tbtn.on{color:#221007;background:var(--accent);border-color:var(--accent)}
+.score-wrap{flex:1;display:grid;place-items:center;min-height:0;min-width:0}
+.score{
+  position:relative;z-index:1;
+  font-family:'Space Grotesk';font-weight:700;line-height:1;
+  font-size:clamp(72px,23vh,168px);          /* 纵向几何 */
+  font-variant-numeric:tabular-nums;
+  color:#FAFCFF;transition:transform .12s;
+}
+#table.rot .score{font-size:min(22vw,36vh,150px)} /* 横置几何 */
+.half:active .score{transform:scale(.96)}
+.score.pop{animation:pop .42s cubic-bezier(.2,.9,.3,1.4)}
+@keyframes pop{0%{transform:scale(.7);opacity:.25}100%{transform:scale(1);opacity:1}}
+.score.gp{text-shadow:0 0 30px rgba(255,138,60,.5)}      /* 局点：暖光 */
+.score.mp{color:#FFB27E;text-shadow:0 0 36px rgba(255,138,60,.75)} /* 赛点：整体转暖色 */
+
+/* ── 球网（默认横向；.rot = 立网）──
+   网区底色以白带为中心向两侧对称渐隐，白带双向投影，保证中轴两侧明暗一致 */
+#net{
+  height:62px;flex-shrink:0;position:relative;z-index:5;
+  background:linear-gradient(rgba(3,14,24,0),rgba(3,14,24,.36) 50%,rgba(3,14,24,0));
+}
+#table.rot #net{
+  width:62px;height:auto;
+  background:linear-gradient(90deg,rgba(3,14,24,0),rgba(3,14,24,.36) 50%,rgba(3,14,24,0));
+}
+#net::before{ /* 网顶白带：上下（横置时左右）对称投影 */
+  content:'';position:absolute;left:0;right:0;top:50%;height:3px;transform:translateY(-50%);
+  background:#F5FAFF;
+  box-shadow:0 2px 5px rgba(0,0,0,.45),0 -2px 5px rgba(0,0,0,.45);
+}
+#table.rot #net::before{
+  left:50%;top:0;bottom:0;width:3px;height:auto;transform:translateX(-50%);
+  box-shadow:2px 0 5px rgba(0,0,0,.45),-2px 0 5px rgba(0,0,0,.45);
+}
+#net::after{ /* 网眼 */
+  content:'';position:absolute;left:12px;right:12px;top:calc(50% - 9px);height:7px;
+  background:repeating-linear-gradient(90deg,rgba(255,255,255,.16) 0 1px,transparent 1px 4px);
+}
+#table.rot #net::after{
+  left:calc(50% - 9px);right:auto;top:12px;bottom:12px;width:7px;height:auto;
+  background:repeating-linear-gradient(180deg,rgba(255,255,255,.16) 0 1px,transparent 1px 4px);
+}
+/* 网柱：纵向用左右两根，横置用上下两根 */
+.post{position:absolute;background:#06202C;border-radius:2px;z-index:3}
+.post.l,.post.r{top:-5px;bottom:-5px;width:9px}
+.post.l{left:1px}.post.r{right:1px}
+.post.t,.post.b{left:-5px;right:-5px;height:9px}
+.post.t{top:1px}.post.b{bottom:1px}
+.post.t,.post.b{display:none}
+#table.rot .post.t,#table.rot .post.b{display:block}
+#table.rot .post.l,#table.rot .post.r{display:none}
+/* 发球指示：纵向沿网上下滑动，横置沿网左右滑动 */
+.serve-ind{
+  position:absolute;left:26px;top:50%;z-index:4;white-space:nowrap;
+  display:flex;align-items:center;gap:6px;
+  font-size:11px;letter-spacing:.12em;color:rgba(255,255,255,.62);
+  transition:transform .35s cubic-bezier(.2,.8,.2,1),opacity .3s;will-change:transform;
+}
+.serve-ind .sball{
+  width:11px;height:11px;border-radius:50%;flex-shrink:0;
+  background:radial-gradient(circle at 35% 30%,#FFD9B8,#FF8A3C 60%,#E0651F);
+  box-shadow:0 1px 4px rgba(0,0,0,.4);
+}
+.serve-ind.s0{transform:translateY(-27px)}
+.serve-ind.s1{transform:translateY(13px)}
+#table.rot .serve-ind{left:50%;top:26%}
+#table.rot .serve-ind.s0{transform:translate(calc(-100% - 16px),-50%)}
+#table.rot .serve-ind.s1{transform:translate(16px,-50%)}
+/* 换发提示：纵向置于白带下方，横置挂网；深色胶囊底保证不压白线 */
+.net-note{
+  position:absolute;right:22px;top:calc(50% + 17px);transform:translateY(-50%);z-index:4;
+  font-size:11px;letter-spacing:.06em;color:rgba(255,255,255,.62);white-space:nowrap;
+  background:rgba(7,23,35,.85);border-radius:999px;padding:3px 9px 3px 10px;
+}
+.net-note.hi{color:var(--accent);letter-spacing:.1em}
+#table.rot .net-note{right:auto;left:50%;top:74%;transform:translate(-50%,-50%)}
+#undoBtn{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:6;
+  width:46px;height:46px;border-radius:50%;
+  background:#0B2837;border:2px solid var(--line);color:#F5FAFF;
+  display:grid;place-items:center;box-shadow:0 0 14px rgba(0,0,0,.5);
+  transition:transform .12s;
+}
+#undoBtn:active{transform:translate(-50%,-50%) scale(.88)}
+#undoBtn.empty{opacity:.4;border-color:rgba(240,250,255,.35)}
+#undoBtn svg{width:21px;height:21px}
+
+/* ── 暂停倒计时：盖住球台的半透明遮罩，比分变暗但仍可见 ── */
+#tOut{
+  position:absolute;inset:0;z-index:8;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:rgba(6,14,20,.74);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);
+  animation:fade .22s;
+}
+.to-name{font-size:13px;letter-spacing:.18em;color:var(--dim)}
+.to-num{
+  font-family:'Space Grotesk';font-weight:700;line-height:1;
+  font-size:clamp(84px,25vh,180px);font-variant-numeric:tabular-nums;
+  color:var(--accent);text-shadow:0 0 40px rgba(255,138,60,.45);
+}
+.to-num.warn{animation:tp 1s ease-in-out infinite}
+/* 暂停画面里的比分：上行「姓名 + 局分」，下行本局比分 */
+.to-score{
+  display:flex;align-items:baseline;gap:9px;margin-top:8px;
+  font-family:'Space Grotesk';font-weight:700;font-size:26px;font-variant-numeric:tabular-nums;
+}
+.to-p{
+  font-family:'Noto Sans SC',-apple-system,'PingFang SC',sans-serif;
+  font-size:15px;font-weight:500;color:rgba(255,255,255,.9);
+  max-width:23vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.to-p.r{text-align:right}
+.to-score i{font-style:normal;color:var(--dim);font-size:.66em}
+.to-set{
+  margin-top:7px;font-family:'Space Grotesk';font-size:13px;font-variant-numeric:tabular-nums;
+  color:var(--dim);letter-spacing:.08em;
+}
+.to-set b{color:var(--ink);font-weight:700}
+.to-end{
+  margin-top:14px;height:42px;padding:0 24px;border-radius:999px;
+  border:1px solid rgba(255,255,255,.2);color:var(--ink);font-size:14px;
+  background:rgba(255,255,255,.05);transition:.15s;
+}
+.to-end:active{background:rgba(255,255,255,.14)}
+
+/* ── 底栏 ──
+   用 flex-start + padding-top 对齐：无文字的纯图标按钮（旋转）才能和其它两个的图标落在同一高度 */
+#dock{display:flex;border-top:1px solid rgba(255,255,255,.06);padding-bottom:env(safe-area-inset-bottom)}
+#dock button{
+  flex:1;height:54px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
+  padding-top:9px;gap:3px;
+  color:var(--dim);font-size:11px;letter-spacing:.1em;transition:color .15s;
+}
+#dock button:active{color:#fff}
+#dock svg{width:20px;height:20px}
+#btn-rotate.on{color:var(--accent)}
+
+/* ── Toast ── */
+#toast{
+  position:fixed;left:50%;bottom:calc(76px + env(safe-area-inset-bottom));z-index:70;
+  transform:translate(-50%,10px);opacity:0;pointer-events:none;
+  background:rgba(24,35,44,.94);border:1px solid rgba(255,255,255,.12);
+  color:var(--ink);font-size:13px;padding:9px 18px;border-radius:999px;
+  transition:opacity .25s,transform .25s;max-width:86vw;text-align:center;
+}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+
+/* ── 浮层 ──
+   用 flex + margin:auto 居中：.sheet 用确定宽度（100% / max-width）而不是 min(100%,420px)，
+   否则 auto 网格轨道会被内容的最大宽度撑大，长文本会把弹窗顶出屏幕右侧 */
+#overlay{
+  position:fixed;inset:0;z-index:50;
+  display:flex;overflow-y:auto;padding:20px 16px;
+  background:rgba(5,10,15,.74);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  animation:fade .22s;
+}
+@keyframes fade{from{opacity:0}}
+.sheet{
+  position:relative;margin:auto;
+  width:100%;max-width:420px;min-width:0;
+  max-height:min(86dvh, calc(100dvh - 48px));
+  display:flex;flex-direction:column;
+  background:#131C24;border:1px solid rgba(255,255,255,.09);border-radius:20px;
+  padding:26px 24px 22px;
+  animation:sh .3s cubic-bezier(.2,.9,.3,1.2);
+}
+@keyframes sh{from{transform:scale(.94) translateY(10px);opacity:0}}
+.sheet-scroll{
+  overflow-y:auto;min-height:0;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+}
+.sheet::before,.sheet::after{
+  content:'';position:absolute;left:2px;right:2px;height:32px;
+  pointer-events:none;opacity:0;transition:opacity .28s;z-index:2;
+}
+.sheet::before{
+  top:1px;border-radius:19px 19px 0 0;
+  background:linear-gradient(180deg,#131C24 24%,rgba(19,28,36,0));
+}
+.sheet::after{
+  bottom:1px;border-radius:0 0 19px 19px;
+  background:linear-gradient(0deg,#131C24 24%,rgba(19,28,36,0));
+}
+.sheet.more-top::before{opacity:1}
+.sheet.more-bottom::after{opacity:1}
+
+.eyebrow{font-size:10px;letter-spacing:.32em;color:var(--dim);font-family:'Space Grotesk'}
+.sh{font-size:18px;font-weight:700;margin:8px 0 18px}
+.big-score{font-family:'Space Grotesk';font-weight:700;font-size:54px;text-align:center;margin:18px 0 6px;font-variant-numeric:tabular-nums}
+.big-score i{font-style:normal;color:var(--dim);font-size:.55em;margin:0 10px}
+.sub{text-align:center;font-size:13px;color:var(--dim);line-height:1.7}
+.sub b{color:var(--ink);font-weight:600}
+.champ{font-size:28px;font-weight:700;text-align:center;margin:16px 0 2px;display:flex;align-items:center;justify-content:center;gap:10px}
+.champ .sball{width:15px;height:15px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#FFD9B8,#FF8A3C 60%,#E0651F);box-shadow:0 0 10px rgba(255,138,60,.5)}
+/* 姓名输入区：minmax(0,1fr) + min-width:0 + width:100% 三层保证严格等宽 */
+.field-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:16px}
+@media (max-width:390px){.field-grid{grid-template-columns:minmax(0,1fr)}}
+.field-grid label{min-width:0;font-size:11px;color:var(--dim);display:flex;flex-direction:column;gap:6px}
+.field-grid input{
+  width:100%;min-width:0;
+  height:44px;border-radius:10px;padding:0 12px;font:inherit;font-size:14px;color:var(--ink);
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);outline:none;
+}
+.field-grid input:focus{border-color:rgba(255,138,60,.6)}
+.lbl{font-size:11px;letter-spacing:.15em;color:var(--dim);margin:16px 0 8px}
+.seg{display:flex;gap:6px}
+.seg button{
+  flex:1;height:40px;border-radius:10px;font-size:13px;color:var(--dim);
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);transition:.15s;
+}
+.seg button.on{background:rgba(255,138,60,.13);border-color:rgba(255,138,60,.7);color:#FFB27E;font-weight:600}
+.pick-server{display:flex;gap:8px}
+.pick-server button{
+  flex:1;height:52px;border-radius:12px;font-size:14px;color:var(--ink);
+  display:flex;align-items:center;justify-content:center;gap:9px;
+  border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);transition:.15s;
+}
+.pick-server .sball{width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,.16);transition:.15s}
+.pick-server button.on{border-color:var(--accent);background:rgba(255,138,60,.1)}
+.pick-server button.on .sball{background:radial-gradient(circle at 35% 30%,#FFD9B8,#FF8A3C 60%,#E0651F);box-shadow:0 0 8px rgba(255,138,60,.5)}
+.btn-col{display:flex;flex-direction:column;gap:10px;margin-top:24px}
+.btn-primary{
+  height:48px;border-radius:12px;background:var(--accent);color:#221007;
+  font-weight:700;font-size:15px;letter-spacing:.02em;transition:transform .12s;
+}
+.btn-primary:active{transform:scale(.97)}
+.btn-ghost{height:44px;border-radius:12px;border:1px solid rgba(255,255,255,.16);color:var(--ink);font-size:14px}
+/* 双按钮行：设置底部 / 确认弹窗 */
+.btn-row{display:flex;gap:10px;margin-top:20px}
+.btn-row > button{flex:1;height:48px;min-width:0}
+.btn-danger{
+  border-radius:12px;border:1px solid rgba(255,107,107,.5);color:#FF7B7B;
+  background:rgba(255,107,107,.07);font-size:14px;padding:0 12px;
+}
+.ninput{
+  width:100%;height:46px;border-radius:10px;padding:0 12px;font:inherit;font-size:15px;color:var(--ink);
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);outline:none;margin-top:6px;
+}
+.ninput:focus{border-color:rgba(255,138,60,.6)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:16px}
+.chip{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);border-radius:10px;padding:8px 13px;text-align:center;min-width:64px}
+.chip b{font-family:'Space Grotesk';font-size:16px;display:block;font-variant-numeric:tabular-nums}
+.chip span{font-size:10px;color:var(--dim)}
+/* 比赛记录卡片（当前场次 + 历史场次） */
+.mcard{
+  border:1px solid rgba(255,255,255,.08);border-radius:12px;
+  padding:11px 12px 12px;margin-bottom:9px;background:rgba(255,255,255,.03);
+}
+.mcard.now{border-color:rgba(255,138,60,.4);background:rgba(255,138,60,.07)}
+.mtop{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.mdate{font-size:11px;color:var(--dim);letter-spacing:.04em;line-height:1.6;min-width:0}
+.mdel{flex-shrink:0;font-size:11px;color:#FF7B7B;border:1px solid rgba(255,107,107,.35);border-radius:8px;padding:3px 10px}
+.mdel:active{background:rgba(255,107,107,.14)}
+.mmain{display:flex;align-items:baseline;gap:10px}
+.mname{flex:1;min-width:0;font-size:14px;color:rgba(255,255,255,.88);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mname.r{text-align:right}
+.mname.win{color:var(--accent);font-weight:600}
+.mbig{flex-shrink:0;font-family:'Space Grotesk';font-size:19px;font-weight:700;font-variant-numeric:tabular-nums}
+.msets{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.mset{font-family:'Space Grotesk';font-size:12px;font-variant-numeric:tabular-nums;color:var(--dim);background:rgba(255,255,255,.05);border-radius:6px;padding:2px 8px}
+.mset.win{color:#FFB27E;background:rgba(255,138,60,.13)}
+.mset.live{color:var(--accent);background:rgba(255,138,60,.13);animation:tp 1.3s ease-in-out infinite}
+.setrow{display:flex;justify-content:space-between;align-items:center;padding:13px 0;cursor:pointer}
+.setrow span{font-size:14px}
+.setrow input{display:none}
+.setrow i{width:46px;height:26px;border-radius:999px;background:rgba(255,255,255,.13);position:relative;transition:.2s;flex-shrink:0}
+.setrow i::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.2s}
+.setrow input:checked + i{background:var(--accent)}
+.setrow input:checked + i::after{transform:translateX(20px)}
+/* 链接行：跳转样式页（负外边距 + 等量内边距 = 文字对齐他行，按压高亮区外扩成圆角） */
+.linkrow{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;
+  padding:13px 10px;margin:0 -10px;border-radius:10px;text-align:left;
+  transition:background .15s;
+}
+.linkrow:active{background:rgba(255,255,255,.05)}
+.linkrow .lr-l{display:flex;flex-direction:column;gap:3px;min-width:0}
+.linkrow .lr-t{font-size:14px}
+.linkrow .lr-d{font-size:11px;color:var(--dim)}
+.linkrow svg{width:17px;height:17px;color:var(--dim);flex-shrink:0}
+.rule{height:1px;background:rgba(255,255,255,.07);margin:8px 0 16px}
+.cf{font-size:14px;color:var(--dim);line-height:1.8;margin-top:6px}
+.cf b{color:var(--ink);font-weight:600}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header id="topbar">
+    <div class="tb-side">
+      <span class="tb-name" id="tb-name-0">选手 A</span>
+      <span class="tb-games" id="tb-games-0">0</span>
+    </div>
+    <div class="tb-center">
+      <div class="tb-gameno" id="tb-gameno">第 1 局</div>
+      <div id="dots"></div>
+      <button id="timer">00:00</button>
+    </div>
+    <div class="tb-side right">
+      <span class="tb-name" id="tb-name-1">选手 B</span>
+      <span class="tb-games" id="tb-games-1">0</span>
+    </div>
+  </header>
+
+  <main id="table">
+    <!-- 选手 A：纵向在上半台 / 横置在左半台 -->
+    <section class="half p0" id="half-0">
+      <div class="meta">
+        <span class="sdot" id="sdot-0" hidden></span>
+        <span class="pname" id="pname-0">选手 A</span>
+        <span class="tag" id="tag-0" hidden>局点</span>
+        <button class="tbtn" id="tbtn-0" type="button" aria-label="请求暂停" hidden>
+          <svg viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="5" width="3.4" height="14" rx="1.2"/><rect x="13.6" y="5" width="3.4" height="14" rx="1.2"/></svg>
+        </button>
+      </div>
+      <div class="score-wrap"><div class="score" id="score-0">0</div></div>
+    </section>
+
+    <!-- 球网 -->
+    <div id="net">
+      <span class="post l"></span><span class="post r"></span>
+      <span class="post t"></span><span class="post b"></span>
+      <div class="serve-ind s0" id="serve-ind"><span class="sball"></span><span>发球</span></div>
+      <span class="net-note" id="net-note">每 2 球换发</span>
+      <button id="undoBtn" aria-label="撤销一分">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 10h9a5 5 0 1 1 0 10h-3"/><path d="M8 6l-4 4 4 4"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- 选手 B：纵向在下半台（信息置底）/ 横置在右半台 -->
+    <section class="half p1" id="half-1">
+      <div class="meta">
+        <span class="sdot" id="sdot-1" hidden></span>
+        <span class="pname" id="pname-1">选手 B</span>
+        <span class="tag" id="tag-1" hidden>局点</span>
+        <button class="tbtn" id="tbtn-1" type="button" aria-label="请求暂停" hidden>
+          <svg viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="5" width="3.4" height="14" rx="1.2"/><rect x="13.6" y="5" width="3.4" height="14" rx="1.2"/></svg>
+        </button>
+      </div>
+      <div class="score-wrap"><div class="score" id="score-1">0</div></div>
+    </section>
+
+    <!-- 暂停倒计时遮罩（覆盖球台，不挡底栏） -->
+    <div id="tOut" hidden>
+      <div class="to-name" id="to-name">请求暂停</div>
+      <div class="to-num" id="to-num">60</div>
+      <div class="to-score">
+        <span class="to-p" id="to-p0">选手 A</span>
+        <span id="to-g0">0</span><i>–</i><span id="to-g1">0</span>
+        <span class="to-p r" id="to-p1">选手 B</span>
+      </div>
+      <div class="to-set" id="to-set">本局 <b>0 – 0</b></div>
+      <button class="to-end" id="to-end" type="button">结束暂停</button>
+    </div>
+  </main>
+
+  <footer id="dock">
+    <button id="btn-history">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+        <path d="M4 6h16M4 12h16M4 18h9"/>
+      </svg><span>记录</span>
+    </button>
+    <button id="btn-rotate" aria-label="旋转球台" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+      </svg>
+    </button>
+    <button id="btn-settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+        <path d="M3 8h9M18 8h3M3 16h3M12 16h9"/><circle cx="15" cy="8" r="2.4"/><circle cx="9" cy="16" r="2.4"/>
+      </svg><span>设置</span>
+    </button>
+  </footer>
+</div>
+
+<div id="toast"></div>
+
+<div id="overlay" hidden>
+  <!-- 开场设置 -->
+  <div class="sheet" id="sheet-start">
+    <div class="sheet-scroll">
+      <div class="eyebrow">TABLE TENNIS UMPIRE</div>
+      <h2 class="sh">裁判计分台</h2>
+      <div class="field-grid">
+        <label id="lb-0">选手 · 上方台<input id="in-name-0" maxlength="8" value="选手 A"></label>
+        <label id="lb-1">选手 · 下方台<input id="in-name-1" maxlength="8" value="选手 B"></label>
+      </div>
+      <div class="lbl">赛制</div>
+      <div class="seg" id="seg-bestof">
+        <button data-v="3" class="on">3 局 2 胜</button><button data-v="5">5 局 3 胜</button><button data-v="7">7 局 4 胜</button>
+      </div>
+      <div class="lbl">每局分制</div>
+      <div class="seg" id="seg-target">
+        <button data-v="11" class="on">11 分</button><button data-v="21">21 分</button>
+      </div>
+      <div class="lbl">先发球（掷猜决定）</div>
+      <div class="pick-server" id="pick-server">
+        <button data-v="0" class="on"><span class="sball"></span><span id="ps-name-0">选手 A</span></button>
+        <button data-v="1"><span class="sball"></span><span id="ps-name-1">选手 B</span></button>
+      </div>
+      <div class="btn-col"><button class="btn-primary" id="btn-start">开始比赛</button></div>
+    </div>
+  </div>
+  <!-- 动态浮层 -->
+  <div class="sheet" id="sheet-dyn" hidden>
+    <div class="sheet-scroll" id="dyn-scroll"></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* ══════════════════════════════════════════════════════════
+   「样式」跳转目标：在此填入网址后，设置中的样式行即可点击跳转
+   · 完整网址：'https://example.com/my-style.html'
+   · 本地文件（与本页面放在同一文件夹）：'style.html'
+   留空（''）时点击会提示未设置
+   ══════════════════════════════════════════════════════════ */
+const STYLE_URL = '2.html';
+
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ── 状态 ── */
+const S = {
+  names:['选手 A','选手 B'],
+  score:[0,0], games:[0,0], gameIndex:0,
+  firstServer:0, history:[],
+  started:false, finished:false, awaitNext:false, pendingW:0,
+  undoStack:[],
+  /* matches 为跨场次保留的历史比赛档案（存 MATCH_KEY），archivedId 指向本场归档的那条 */
+  matches:[], archivedId:null,
+  /* timeouts 为双方本场剩余暂停次数；tOut 为进行中的暂停 {side,endTs} */
+  timeouts:[1,1], tOut:null,
+  startTs:null, acc:0, paused:false,
+  /* rot 默认纵向；volume 为提示音主音量（0~1），档位见设置里的「音量」 */
+  cfg:{ bestOf:3, target:11, sound:true, haptics:true, rot:false, volume:.85 },
+};
+
+/* ── 规则引擎 ── */
+const winsNeeded = () => (S.cfg.bestOf + 1) / 2;
+const isDeciding = () => S.games[0] === winsNeeded()-1 && S.games[1] === winsNeeded()-1;
+
+function currentServer(){
+  const t = S.cfg.target;
+  const interval = t >= 20 ? 5 : 2;      // 21 分制每 5 球换发
+  const deuce = 2 * (t - 1);             // 平分阈值（总分）
+  const total = S.score[0] + S.score[1];
+  if (total >= deuce) {                  // 平分后每 1 球换发
+    const period = Math.floor(deuce / interval);
+    return (S.firstServer + S.gameIndex + period + (total - deuce)) % 2;
+  }
+  return (S.firstServer + S.gameIndex + Math.floor(total / interval)) % 2;
+}
+
+/* 决胜局换边分：11 分制 5 分，21 分制 10 分。
+   注意 ITTF 2.13.7 只规定「换边」——单打换边不改变发球顺序，
+   2.13.6 中「同时改变接发球顺序」的条款仅适用于双打。 */
+const midScore = () => Math.floor(S.cfg.target / 2);
+const endsChanged = () =>
+  isDeciding() && (S.score[0] >= midScore() || S.score[1] >= midScore());
+
+function pointLabel(i){                  // 'match' 赛点 | 'game' 局点 | null
+  if (S.finished || S.awaitNext) return null;
+  const t = S.cfg.target;
+  if (S.score[i] >= t-1 && S.score[i] > S.score[1-i])
+    return S.games[i] === winsNeeded()-1 ? 'match' : 'game';
+  return null;
+}
+
+/* ── 音效 / 震动 ── */
+let AC = null;
+function tone(f, dur, delay=0, vol=S.cfg.volume, type='triangle'){
+  if (!S.cfg.sound) return;
+  try{
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    if (AC.state === 'suspended') AC.resume();   /* iOS 切后台/来电后会挂起，需唤醒 */
+    const t0 = AC.currentTime + delay;
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = type; o.frequency.value = f;
+    g.gain.setValueAtTime(vol, t0);
+    g.gain.exponentialRampToValueAtTime(.001, t0 + dur);
+    o.connect(g).connect(AC.destination); o.start(t0); o.stop(t0 + dur + .03);
+  }catch(e){}
+}
+const beepScore = () => tone(740, .06);
+const beepGame  = () => { tone(523,.12); tone(784,.2,.13); };
+const beepWin   = () => { tone(523,.12); tone(659,.12,.13); tone(880,.34,.26); };
+const vib = (ms=12) => { if (S.cfg.haptics && navigator.vibrate) navigator.vibrate(ms); };
+
+/* ── 计时 ── */
+const elapsed = () => S.acc + (S.startTs ? Date.now() - S.startTs : 0);
+const fmt = ms => {
+  const s = Math.floor(ms/1000), m = Math.floor(s/60), h = Math.floor(m/60);
+  return (h ? h + ':' + String(m%60).padStart(2,'0') : String(m).padStart(2,'0')) + ':' + String(s%60).padStart(2,'0');
+};
+const fmtDate = ts => {
+  const d = new Date(ts), p = n => String(n).padStart(2,'0');
+  return `${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+setInterval(() => { if (S.started && !S.paused) $('timer').textContent = fmt(elapsed()); }, 500);
+function freezeTimer(){ if (S.startTs){ S.acc += Date.now() - S.startTs; S.startTs = null; } }
+ $('timer').addEventListener('click', () => {
+  if (!S.started || S.finished || S.tOut) return;   /* 暂停倒计时期间不动比赛计时 */
+  if (S.paused){ S.paused = false; S.startTs = Date.now(); $('timer').classList.remove('paused'); toast('计时继续'); }
+  else { freezeTimer(); S.paused = true; $('timer').classList.add('paused'); toast('计时已暂停'); }
+  save();
+});
+
+/* ── 暂停（每方每场 1 次，各 60 秒；暂停期间比赛计时停走） ── */
+const TIMEOUT_MS = 60000;
+let tOutTick = null;
+const tOutLeft = () => (S.tOut ? Math.max(0, S.tOut.endTs - Date.now()) : 0);
+function paintTimeout(left){
+  const sec = Math.ceil(left / 1000);
+  $('to-num').textContent = sec;
+  $('to-num').classList.toggle('warn', sec <= 10);
+}
+function startTicker(){
+  clearInterval(tOutTick);
+  tOutTick = setInterval(() => { S.tOut && (tOutLeft() <= 0 ? endTimeout(true) : paintTimeout(tOutLeft())); }, 200);
+  paintTimeout(tOutLeft());
+}
+function showTimeout(){                              /* 显示遮罩并从当前剩余时间接着走（刷新后复用） */
+  if (!S.tOut) return;
+  render();                                          /* 顺带把双方姓名与比分刷上遮罩 */
+  $('tOut').hidden = false;
+  startTicker();
+}
+function startTimeout(i){
+  if (!S.started || S.finished || S.tOut) return;
+  if (!S.timeouts[i]){ toast(`${S.names[i]} 本场暂停已用完`); return; }
+  S.timeouts[i]--;
+  S.tOut = { side:i, endTs: Date.now() + TIMEOUT_MS };
+  freezeTimer();                                   /* 暂停不计入比赛用时 */
+  showTimeout();
+  vib(18); tone(880,.1); tone(660,.16,.11);
+  toast(`${S.names[i]} 暂停 · 60 秒`);
+}
+function endTimeout(auto){
+  if (!S.tOut) return;
+  clearInterval(tOutTick); tOutTick = null;
+  S.tOut = null;
+  $('tOut').hidden = true;
+  /* 恢复比赛计时：若比赛已结束、或裁判手动暂停了计时，则不重启 */
+  if (S.started && !S.finished && !S.paused) S.startTs = Date.now();
+  render(); vib(12);
+  if (auto){ tone(880,.1); tone(660,.16,.11); toast('暂停结束 · 比赛继续'); }
+  else toast('已结束暂停');
+}
+function resetTimeouts(){
+  clearInterval(tOutTick); tOutTick = null;
+  S.timeouts = [1,1]; S.tOut = null;
+  $('tOut').hidden = true;
+}
+
+/* ── 存档 / 读档（刷新、误触返回后不丢比分） ── */
+const SAVE_KEY = 'ppscore.v1';
+function save(){
+  try{
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      names:S.names, score:S.score, games:S.games, gameIndex:S.gameIndex,
+      firstServer:S.firstServer, history:S.history, undoStack:S.undoStack,
+      started:S.started, finished:S.finished, awaitNext:S.awaitNext, pendingW:S.pendingW,
+      cfg:S.cfg, paused:S.paused, archivedId:S.archivedId,
+      timeouts:S.timeouts, tOut:S.tOut,
+      acc:elapsed(), savedAt:Date.now(),      /* acc 冻结后记录时间点，读档时补回离线时长 */
+    }));
+  }catch(e){}
+}
+function load(){
+  try{
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return false;
+    const o = JSON.parse(raw);
+    if (!o || typeof o !== 'object') return false;
+    S.names = Array.isArray(o.names) && o.names.length === 2 ? o.names : S.names;
+    S.score = Array.isArray(o.score) ? o.score : [0,0];
+    S.games = Array.isArray(o.games) ? o.games : [0,0];
+    S.gameIndex = o.gameIndex || 0;
+    S.firstServer = o.firstServer || 0;
+    S.history = Array.isArray(o.history) ? o.history : [];
+    S.undoStack = Array.isArray(o.undoStack) ? o.undoStack : [];
+    S.started = !!o.started; S.finished = !!o.finished; S.awaitNext = !!o.awaitNext;
+    S.pendingW = o.pendingW || 0;
+    S.cfg = Object.assign({}, S.cfg, o.cfg || {});
+    S.paused = !!o.paused;
+    S.archivedId = o.archivedId || null;
+    S.timeouts = Array.isArray(o.timeouts) && o.timeouts.length === 2 ? o.timeouts : [1,1];
+    S.tOut = o.tOut && typeof o.tOut.endTs === 'number' ? o.tOut : null;
+    /* 关页面时若暂停还在跑，这段离线时间算作暂停，不计入比赛用时 */
+    const running = S.started && !S.paused && !S.finished && !S.tOut;
+    S.acc = (o.acc || 0) + (running ? Math.max(0, Date.now() - (o.savedAt || Date.now())) : 0);
+    S.startTs = running ? Date.now() : null;
+    return true;
+  }catch(e){ return false; }
+}
+function clearSave(){ try{ localStorage.removeItem(SAVE_KEY); }catch(e){} }
+
+/* ── 历史比赛档案（独立于 SAVE_KEY：重开一场、重新比赛都不会丢） ── */
+const MATCH_KEY = 'ppscore.matches.v1';
+function saveMatches(){ try{ localStorage.setItem(MATCH_KEY, JSON.stringify(S.matches)); }catch(e){} }
+function loadMatches(){
+  try{
+    const a = JSON.parse(localStorage.getItem(MATCH_KEY) || '[]');
+    S.matches = Array.isArray(a)
+      ? a.filter(m => m && Array.isArray(m.names) && Array.isArray(m.games))
+      : [];
+  }catch(e){ S.matches = []; }
+}
+function archiveMatch(w){
+  const rec = {
+    id: 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    ts: Date.now(), names: S.names.slice(),
+    bestOf: S.cfg.bestOf, target: S.cfg.target,
+    games: S.games.slice(),
+    sets: S.history.map(h => ({ a:h.a, b:h.b, w:h.w })),
+    w, dur: elapsed(),
+    touts: [1 - S.timeouts[0], 1 - S.timeouts[1]],   /* 本场双方各用掉几次暂停 */
+  };
+  S.matches.unshift(rec);          /* 最新一场排在最前 */
+  S.archivedId = rec.id;
+  saveMatches();
+}
+function unarchiveMatch(){         /* 撤销赛点分时回滚归档，避免留下假记录 */
+  if (!S.archivedId) return;
+  S.matches = S.matches.filter(m => m.id !== S.archivedId);
+  S.archivedId = null;
+  saveMatches();
+}
+function deleteMatch(id){
+  S.matches = S.matches.filter(m => m.id !== id);
+  if (S.archivedId === id) S.archivedId = null;
+  saveMatches();
+}
+
+/* ── 屏幕常亮（比赛中防止自动息屏） ── */
+let wakeLock = null;
+async function requestWake(){
+  if (!('wakeLock' in navigator) || wakeLock) return;
+  try{
+    wakeLock = await navigator.wakeLock.request('screen');
+    wakeLock.addEventListener('release', () => { wakeLock = null; });
+  }catch(e){ wakeLock = null; }
+}
+function releaseWake(){ if (wakeLock){ try{ wakeLock.release(); }catch(e){} wakeLock = null; } }
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && S.started && !S.finished) requestWake();
+});
+
+/* ── 球台方向 ── */
+function applyRot(){
+  $('table').classList.toggle('rot', !!S.cfg.rot);
+  $('btn-rotate').classList.toggle('on', !!S.cfg.rot);   /* 底栏快捷图标：横置时点亮 */
+}
+function setRot(on){
+  S.cfg.rot = !!on;
+  applyRot(); save(); vib(10);
+  toast(S.cfg.rot ? '球台已横置 · 左右半台计分' : '球台已竖置 · 上下半台计分');
+}
+
+/* ── 渲染 ── */
+function render(){
+  $('tb-name-0').textContent = S.names[0];
+  $('tb-name-1').textContent = S.names[1];
+  $('tb-games-0').textContent = S.games[0];
+  $('tb-games-1').textContent = S.games[1];
+  $('tb-gameno').textContent = S.finished ? '比赛结束' : `第 ${S.gameIndex + 1} 局`;
+
+  const dots = $('dots'); dots.innerHTML = '';
+  for (let i = 0; i < S.cfg.bestOf; i++){
+    const d = document.createElement('i');
+    if (i < S.gameIndex || (S.finished && i === S.gameIndex)) d.className = 'done';
+    else if (i === S.gameIndex && S.started) d.className = 'cur';
+    dots.appendChild(d);
+  }
+
+  const sv = S.finished ? -1 : currentServer();
+  for (let i = 0; i < 2; i++){
+    $('pname-'+i).textContent = S.names[i];
+    const sc = $('score-'+i);
+    sc.textContent = S.score[i];
+    $('sdot-'+i).hidden = sv !== i;
+    const lb = pointLabel(i), tag = $('tag-'+i);
+    tag.hidden = !lb;
+    if (lb) tag.textContent = lb === 'match' ? '赛点' : '局点';
+    sc.classList.toggle('gp', lb === 'game');      /* 局点：暖光 */
+    sc.classList.toggle('mp', lb === 'match');     /* 赛点：整体转暖色 */
+    const tb = $('tbtn-'+i);                       /* 暂停：未开赛/已结束不显示，用完置灰，暂停中点亮 */
+    tb.hidden = !S.started || S.finished;
+    tb.classList.toggle('used', !S.timeouts[i]);
+    tb.classList.toggle('on', !!S.tOut && S.tOut.side === i);
+  }
+  $('undoBtn').classList.toggle('empty', S.undoStack.length === 0);
+
+  const ind = $('serve-ind');
+  ind.className = 'serve-ind ' + (sv === 0 ? 's0' : 's1');
+  ind.style.opacity = S.finished ? 0 : 1;
+
+  const t = S.cfg.target, a = S.score[0], b = S.score[1], note = $('net-note');
+  if (!S.finished && Math.min(a,b) >= t-1){
+    note.textContent = a === b ? '平分 · 每球换发' : '每球换发';
+    note.classList.add('hi');
+  } else {
+    note.textContent = `每 ${t >= 20 ? 5 : 2} 球换发`;
+    note.classList.remove('hi');
+  }
+
+  if (S.tOut){        /* 暂停遮罩上的比分：走 render 保证撤销等操作后也同步 */
+    $('to-name').textContent = `${S.names[S.tOut.side]} 请求暂停`;
+    $('to-p0').textContent = S.names[0]; $('to-p1').textContent = S.names[1];
+    $('to-g0').textContent = S.games[0]; $('to-g1').textContent = S.games[1];
+    $('to-set').innerHTML = `本局 <b>${S.score[0]} – ${S.score[1]}</b>`;
+  }
+  save();
+}
+function bumpScore(i){
+  const el = $('score-'+i);
+  el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop');
+  const h = $('half-'+i);
+  h.classList.remove('flash'); void h.offsetWidth; h.classList.add('flash');
+}
+
+/* ── 比赛动作 ── */
+function pushUndo(){
+  S.undoStack.push(JSON.stringify({
+    s:S.score, g:S.games, gi:S.gameIndex, h:S.history, f:S.finished
+  }));
+  if (S.undoStack.length > 300) S.undoStack.shift();
+}
+function addScore(i){
+  if (!S.started || S.finished || S.awaitNext || S.tOut) return;
+  pushUndo();
+  const wasChanged = endsChanged();
+  S.score[i]++;
+  vib(); beepScore();
+  render(); bumpScore(i);
+  if (!wasChanged && endsChanged()) toast('决胜局 · 双方交换场地');  /* ITTF 2.13.7 */
+  const t = S.cfg.target;
+  if (S.score[i] >= t && S.score[i] - S.score[1-i] >= 2) endGame(i);
+}
+function endGame(w){
+  S.games[w]++;
+  S.history.push({ a:S.score[0], b:S.score[1], w });
+  S.pendingW = w;
+  if (S.games[w] >= winsNeeded()){
+    S.finished = true; freezeTimer(); beepWin(); releaseWake();
+    archiveMatch(w);
+    setTimeout(() => openWinSheet(w), 380);
+  } else {
+    S.awaitNext = true; beepGame();
+    setTimeout(() => openGameSheet(w), 380);
+  }
+  render();
+}
+function nextGame(){
+  S.awaitNext = false;
+  S.gameIndex++; S.score = [0,0];
+  closeOverlay(); render();
+  toast(`双方交换场地 · ${S.names[currentServer()]} 先发球`);
+}
+function undo(){
+  const snap = S.undoStack.pop();
+  if (!snap){ toast('没有可撤销的分数'); return; }
+  const o = JSON.parse(snap);
+  const wasFinished = S.finished;
+  S.score = o.s; S.games = o.g; S.gameIndex = o.gi; S.history = o.h;
+  S.finished = o.f; S.awaitNext = false;
+  if (wasFinished && !S.finished) unarchiveMatch();   /* 撤销掉赛点分 → 比赛重新进行，撤掉归档 */
+  /* 撤销赛点时 freezeTimer() 已置空 startTs，不补回的话计时器会永远停住；暂停倒计时中则不补 */
+  if (S.started && !S.finished && !S.paused && !S.tOut && S.startTs === null) S.startTs = Date.now();
+  closeOverlay(); render(); vib(8);
+  toast('已撤销 1 分');
+}
+
+/* ── 浮层系统（含滚动渐隐提示） ── */
+const overlay = $('overlay'), sheetStart = $('sheet-start'), sheetDyn = $('sheet-dyn');
+
+function paintHint(sheet, sc){
+  sheet.classList.toggle('more-top', sc.scrollTop > 4);
+  sheet.classList.toggle('more-bottom', sc.scrollTop + sc.clientHeight < sc.scrollHeight - 4);
+}
+function bindHint(sheet){
+  const sc = sheet.querySelector('.sheet-scroll');
+  sc.addEventListener('scroll', () => paintHint(sheet, sc), {passive:true});
+  return sc;
+}
+const scStart = bindHint(sheetStart), scDyn = bindHint(sheetDyn);
+window.addEventListener('resize', () => { paintHint(sheetStart, scStart); paintHint(sheetDyn, scDyn); });
+
+function openDyn(html, dismiss = true){
+  scDyn.innerHTML = html;
+  sheetDyn.hidden = false; sheetStart.hidden = true;
+  overlay.hidden = false; overlay.dataset.dismiss = dismiss ? '1' : '';
+  requestAnimationFrame(() => paintHint(sheetDyn, scDyn));
+}
+function openStart(){
+  $('lb-0').childNodes[0].nodeValue = S.cfg.rot ? '选手 · 左台' : '选手 · 上方台';
+  $('lb-1').childNodes[0].nodeValue = S.cfg.rot ? '选手 · 右台' : '选手 · 下方台';
+  $('in-name-0').value = S.names[0]; $('in-name-1').value = S.names[1];
+  $('ps-name-0').textContent = S.names[0]; $('ps-name-1').textContent = S.names[1];
+  [...$('seg-bestof').children].forEach(b => b.classList.toggle('on', +b.dataset.v === S.cfg.bestOf));
+  [...$('seg-target').children].forEach(b => b.classList.toggle('on', +b.dataset.v === S.cfg.target));
+  [...$('pick-server').children].forEach(b => b.classList.toggle('on', +b.dataset.v === S.firstServer));
+  sheetDyn.hidden = true; sheetStart.hidden = false;
+  overlay.hidden = false; overlay.dataset.dismiss = '';
+  requestAnimationFrame(() => paintHint(sheetStart, scStart));
+}
+function closeOverlay(){ overlay.hidden = true; }
+overlay.addEventListener('click', e => {
+  if (e.target === overlay && overlay.dataset.dismiss) closeOverlay();
+});
+
+function openGameSheet(w){
+  const h = S.history[S.history.length - 1];
+  openDyn(`
+    <div class="eyebrow">第 ${S.gameIndex + 1} 局 · 结束</div>
+    <div class="big-score">${h.a}<i>–</i>${h.b}</div>
+    <p class="sub"><b>${esc(S.names[w])}</b> 拿下本局<br>总局分 ${S.games[0]} – ${S.games[1]}</p>
+    <div class="btn-col">
+      <button class="btn-primary" id="sd-next">交换场地 · 进入第 ${S.gameIndex + 2} 局</button>
+      <button class="btn-ghost" id="sd-undo">撤销这一分</button>
+    </div>`);
+  $('sd-next').onclick = nextGame;
+  $('sd-undo').onclick = undo;
+}
+function openWinSheet(w){
+  const chips = S.history.map(h =>
+    `<div class="chip"><b>${h.a}–${h.b}</b><span>${esc(S.names[h.w])} 胜</span></div>`).join('');
+  openDyn(`
+    <div class="eyebrow">MATCH OVER</div>
+    <div class="champ"><span class="sball"></span>${esc(S.names[w])}</div>
+    <p class="sub">赢得比赛 · 局分 ${S.games[0]} – ${S.games[1]} · 用时 ${fmt(elapsed())}</p>
+    <div class="chips">${chips}</div>
+    <div class="btn-col">
+      <button class="btn-primary" id="sw-new">新比赛</button>
+      <button class="btn-ghost" id="sw-undo">撤销这一分</button>
+    </div>`);
+  $('sw-new').onclick = () => { S.started = false; releaseWake(); save(); openStart(); };
+  $('sw-undo').onclick = undo;
+}
+/* 确认弹窗：text 允许内联标签，其中姓名须由调用方自行 esc */
+function confirmSheet(text, yesLabel, onYes, onNo){
+  openDyn(`
+    <div class="eyebrow">确认</div>
+    <p class="cf">${text}</p>
+    <div class="btn-row">
+      <button class="btn-ghost" id="cf-n">取消</button>
+      <button class="btn-danger" id="cf-y">${esc(yesLabel)}</button>
+    </div>`);
+  $('cf-n').onclick = onNo;
+  $('cf-y').onclick = onYes;
+}
+function liveCard(){
+  const chips = S.history.map(h => `<span class="mset">${h.a}–${h.b}</span>`).join('');
+  return `<div class="mcard now">
+    <div class="mtop"><span class="mdate">进行中 · 第 ${S.gameIndex+1} 局 · ${S.cfg.bestOf} 局 ${winsNeeded()} 胜 · ${S.cfg.target} 分</span></div>
+    <div class="mmain">
+      <span class="mname">${esc(S.names[0])}</span>
+      <span class="mbig">${S.games[0]} – ${S.games[1]}</span>
+      <span class="mname r">${esc(S.names[1])}</span>
+    </div>
+    <div class="msets">${chips}<span class="mset live">${S.score[0]}–${S.score[1]}</span></div>
+  </div>`;
+}
+function matchCard(m){
+  const chips = (m.sets || []).map(s =>
+    `<span class="mset${s.w === m.w ? ' win' : ''}">${s.a}–${s.b}</span>`).join('');
+  const t = m.touts || [0,0], tOutTxt = (t[0] || t[1]) ? ` · 暂停 ${t[0]}:${t[1]}` : '';
+  return `<div class="mcard">
+    <div class="mtop">
+      <span class="mdate">${fmtDate(m.ts)} · ${m.bestOf} 局 ${(m.bestOf+1)/2} 胜 · ${m.target} 分<br>用时 ${fmt(m.dur||0)}${tOutTxt}</span>
+      <button class="mdel" data-del="${m.id}">删除</button>
+    </div>
+    <div class="mmain">
+      <span class="mname${m.w === 0 ? ' win' : ''}">${esc(m.names[0])}</span>
+      <span class="mbig">${m.games[0]} – ${m.games[1]}</span>
+      <span class="mname r${m.w === 1 ? ' win' : ''}">${esc(m.names[1])}</span>
+    </div>
+    ${chips ? `<div class="msets">${chips}</div>` : ''}
+  </div>`;
+}
+function openHistory(){
+  const cards = [];
+  if (S.started && !S.finished) cards.push(liveCard());   /* 已结束的场次已在档案里，不重复展示 */
+  S.matches.forEach(m => cards.push(matchCard(m)));
+  openDyn(`
+    <div class="eyebrow">SCORE SHEET</div><h2 class="sh">比赛记录</h2>
+    ${cards.length ? cards.join('') : '<p class="sub" style="padding:20px 0">还没有比赛记录</p>'}
+    <div class="btn-col">
+      ${S.matches.length ? '<button class="btn-danger" id="hs-clear">清空全部记录</button>' : ''}
+      <button class="btn-ghost" id="hs-close">关闭</button>
+    </div>`);
+  $('hs-close').onclick = closeOverlay;
+  const clr = $('hs-clear');
+  if (clr) clr.onclick = () => confirmSheet(
+    `将删除全部 <b>${S.matches.length}</b> 场已保存的比赛记录，此操作无法撤销。`,
+    '确认清空',
+    () => { S.matches = []; S.archivedId = null; saveMatches(); toast('已清空全部记录'); openHistory(); },
+    openHistory);
+  scDyn.querySelectorAll('[data-del]').forEach(btn => {
+    btn.onclick = () => {
+      const m = S.matches.find(x => x.id === btn.dataset.del);
+      if (!m) return;
+      confirmSheet(
+        `将删除 <b>${esc(m.names[m.w])}</b> 获胜的这场比赛记录，此操作无法撤销。`,
+        '确认删除',
+        () => { deleteMatch(m.id); toast('已删除该场比赛'); openHistory(); },
+        openHistory);
+    };
+  });
+}
+function openSettings(){
+  openDyn(`
+    <div class="eyebrow">SETTINGS</div><h2 class="sh">设置</h2>
+    <label class="setrow"><span>旋转球台</span><input type="checkbox" id="sw-rot" ${S.cfg.rot?'checked':''}><i></i></label>
+    <label class="setrow"><span>音效</span><input type="checkbox" id="sw-sound" ${S.cfg.sound?'checked':''}><i></i></label>
+    <label class="setrow"><span>震动反馈</span><input type="checkbox" id="sw-hap" ${S.cfg.haptics?'checked':''}><i></i></label>
+    <div class="lbl">音量</div>
+    <div class="seg" id="seg-vol">
+      <button data-v="0.5">轻</button><button data-v="0.85">标准</button><button data-v="1">响亮</button>
+    </div>
+    <button class="linkrow" id="btn-style">
+      <span class="lr-l">
+        <span class="lr-t">切换样式</span>
+        <span class="lr-d">在新标签页打开另一种样式界面</span>
+      </span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 6l6 6-6 6"/>
+      </svg>
+    </button>
+    <div class="rule"></div>
+    <div class="btn-row">
+      <button class="btn-danger" id="btn-reset">重新比赛</button>
+      <button class="btn-primary" id="btn-ok">确定</button>
+    </div>`);
+  $('sw-rot').onchange = e => setRot(e.target.checked);
+  $('sw-sound').onchange = e => { S.cfg.sound = e.target.checked; save(); };
+  $('sw-hap').onchange = e => { S.cfg.haptics = e.target.checked; save(); };
+  const segVol = $('seg-vol');
+  [...segVol.children].forEach(b => b.classList.toggle('on', +b.dataset.v === S.cfg.volume));
+  bindSeg(segVol);
+  segVol.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    S.cfg.volume = +b.dataset.v;
+    save();
+    tone(740, .12);                    /* 按新音量试听一声 */
+  });
+  $('btn-style').onclick = () => {                 /* 跳转样式页 */
+    if (!STYLE_URL){ toast('样式页链接未设置 · 请编辑源码顶部的 STYLE_URL'); return; }
+    window.open(STYLE_URL, '_blank', 'noopener');  /* 新标签页：不丢失当前比分 */
+  };
+  $('btn-ok').onclick = closeOverlay;          /* 确定并关闭设置 */
+  $('btn-reset').onclick = () => {
+    confirmSheet(
+      '重新比赛将清除当前比分与本场已打的局，已保存的历史比赛记录不受影响。',
+      '确认重新比赛',
+      () => {
+        S.started = false; S.finished = false; S.awaitNext = false;
+        S.score = [0,0]; S.games = [0,0]; S.gameIndex = 0; S.history = [];
+        S.undoStack = []; freezeTimer(); S.paused = false; S.acc = 0;
+        S.archivedId = null;
+        resetTimeouts();
+        releaseWake(); clearSave();
+        $('timer').textContent = '00:00'; $('timer').classList.remove('paused');
+        render(); openStart();
+      },
+      openSettings);
+  };
+}
+function openName(i){
+  openDyn(`
+    <div class="eyebrow">RENAME</div><h2 class="sh">修改选手名</h2>
+    <input class="ninput" id="nip" maxlength="8" value="${esc(S.names[i])}">
+    <div class="btn-col">
+      <button class="btn-primary" id="ne-ok">保存</button>
+      <button class="btn-ghost" id="ne-no">取消</button>
+    </div>`);
+  const inp = $('nip'); inp.focus(); inp.select();
+  $('ne-ok').onclick = () => {
+    S.names[i] = inp.value.trim() || S.names[i];
+    closeOverlay(); render();
+  };
+  $('ne-no').onclick = closeOverlay;
+}
+
+/* ── Toast ── */
+let toastT = null;
+function toast(msg){
+  const el = $('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastT);
+  toastT = setTimeout(() => el.classList.remove('show'), 2300);
+}
+
+/* ── 事件绑定 ── */
+function tapHalf(i){
+  if (S.tOut) return;                              /* 暂停倒计时中不接受计分 */
+  if (S.finished) openWinSheet(S.pendingW);
+  else if (S.awaitNext) openGameSheet(S.pendingW);
+  else addScore(i);
+}
+for (let i = 0; i < 2; i++){
+  $('half-'+i).addEventListener('click', () => tapHalf(i));
+  $('pname-'+i).addEventListener('click', e => { e.stopPropagation(); if (S.started) openName(i); });
+  $('tbtn-'+i).addEventListener('click', e => { e.stopPropagation(); startTimeout(i); });
+}
+ $('to-end').addEventListener('click', () => endTimeout(false));
+ $('undoBtn').addEventListener('click', undo);
+ $('btn-history').addEventListener('click', openHistory);
+ $('btn-rotate').addEventListener('click', () => setRot(!S.cfg.rot));   /* 底栏旋转球台快捷操作 */
+ $('btn-settings').addEventListener('click', openSettings);
+
+/* ── 键盘快捷键：A/B（或方向键、1/2）加分，Z 撤销，空格暂停，H 记录，S 设置 ── */
+document.addEventListener('keydown', e => {
+  const el = e.target;
+  if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)){
+    if (e.key === 'Enter'){                       /* 输入框内回车 = 确认 */
+      if (!$('sheet-start').hidden) $('btn-start').click();
+      else if ($('nip')) $('ne-ok').click();
+    }
+    return;
+  }
+  const k = e.key.toLowerCase();
+  if ((e.ctrlKey || e.metaKey) && k === 'z'){ e.preventDefault(); undo(); return; }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (k === 'escape'){ if (!overlay.hidden && overlay.dataset.dismiss) closeOverlay(); return; }
+  if (overlay.hidden && (k === 'h' || k === 's')){ k === 'h' ? openHistory() : openSettings(); return; }
+  if (!S.started){ if (k === 'enter'){ e.preventDefault(); $('btn-start').click(); } return; }
+  if (!overlay.hidden) return;                    /* 浮层打开时不误加分 */
+  if (k === 'a' || k === '1' || k === 'arrowup' || k === 'arrowleft'){ e.preventDefault(); tapHalf(0); }
+  else if (k === 'b' || k === '2' || k === 'arrowdown' || k === 'arrowright'){ e.preventDefault(); tapHalf(1); }
+  else if (k === 'z' || k === 'backspace'){ e.preventDefault(); undo(); }
+  else if (k === ' '){ e.preventDefault(); $('timer').click(); }
+});
+
+const bindSeg = el => el.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  [...el.children].forEach(c => c.classList.toggle('on', c === b));
+});
+bindSeg($('seg-bestof')); bindSeg($('seg-target')); bindSeg($('pick-server'));
+const syncPickName = i => $('ps-name-'+i).textContent = $('in-name-'+i).value.trim() || `选手 ${i ? 'B' : 'A'}`;
+ $('in-name-0').addEventListener('input', () => syncPickName(0));
+ $('in-name-1').addEventListener('input', () => syncPickName(1));
+
+ $('btn-start').addEventListener('click', () => {
+  S.names[0] = $('in-name-0').value.trim() || '选手 A';
+  S.names[1] = $('in-name-1').value.trim() || '选手 B';
+  S.cfg.bestOf = +$('seg-bestof').querySelector('.on').dataset.v;
+  S.cfg.target = +$('seg-target').querySelector('.on').dataset.v;
+  S.firstServer = +$('pick-server').querySelector('.on').dataset.v;
+  S.score = [0,0]; S.games = [0,0]; S.gameIndex = 0; S.history = [];
+  S.undoStack = []; S.finished = false; S.awaitNext = false;
+  S.archivedId = null;
+  resetTimeouts();
+  S.started = true; S.startTs = Date.now(); S.acc = 0; S.paused = false;
+  $('timer').classList.remove('paused'); $('timer').textContent = '00:00';
+  closeOverlay(); render(); vib(15); requestWake();
+  toast(`${S.names[S.firstServer]} 先发球 · 每 ${S.cfg.target >= 20 ? 5 : 2} 球换发`);
+});
+
+/* ── 初始化 ── */
+const restored = load();   /* 必须先读档：applyRot() / render() 都依赖已恢复的配置，否则会被默认值覆盖 */
+loadMatches();
+applyRot();
+render();
+if (restored && S.started){
+  $('timer').textContent = fmt(elapsed());
+  if (S.paused) $('timer').classList.add('paused');
+  requestWake();
+  if (S.finished) setTimeout(() => openWinSheet(S.pendingW), 320);
+  else if (S.awaitNext) setTimeout(() => openGameSheet(S.pendingW), 320);
+  else if (S.tOut){ if (tOutLeft() > 0) showTimeout(); else endTimeout(true); }   /* 刷新时暂停仍在倒计时 → 接着走 */
+  else toast('已恢复上一场比赛');
+} else {
+  openStart();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,1596 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏓</text></svg>">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>乒乓球裁判 · 比分面板</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background: #f5f7fa;
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 12px;
+            color: #1e293b;
+            touch-action: manipulation;
+        }
+
+        .panel {
+            max-width: 460px;
+            width: 100%;
+            background: #ffffff;
+            border-radius: 36px;
+            box-shadow: 0 20px 35px -8px rgba(0, 0, 0, 0.1), 0 8px 16px -6px rgba(0, 0, 0, 0.02);
+            padding: 24px 20px 28px;
+            transition: all 0.2s;
+            border: 1px solid rgba(226, 232, 240, 0.6);
+        }
+
+        .match-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding: 0 4px;
+        }
+
+        .match-title {
+            font-size: 1rem;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            color: #64748b;
+            text-transform: uppercase;
+            background: #f1f5f9;
+            padding: 6px 14px;
+            border-radius: 40px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .sound-btn {
+            background: #f1f5f9;
+            border: none;
+            border-radius: 40px;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background 0.15s;
+            border: 1px solid #e2e8f0;
+            color: #475569;
+            padding: 0;
+        }
+
+        .sound-btn:active {
+            background: #e2e8f0;
+        }
+
+        .sound-btn.muted {
+            color: #cbd5e1;
+        }
+
+        /* 关键修复：让按钮内的 SVG 不接收点击事件，事件直接落到按钮上 */
+        .sound-btn svg {
+            width: 18px;
+            height: 18px;
+            stroke: currentColor;
+            stroke-width: 2;
+            fill: none;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            pointer-events: none;
+        }
+
+        .reset-btn {
+            background: #f1f5f9;
+            border: none;
+            border-radius: 40px;
+            padding: 8px 16px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: #475569;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            transition: background 0.15s;
+            border: 1px solid #e2e8f0;
+        }
+
+        .reset-btn:active {
+            background: #e2e8f0;
+        }
+
+        .reset-btn svg {
+            pointer-events: none;
+        }
+
+        /* 赛制选择器 */
+        .format-selector {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 18px;
+            padding: 6px;
+            background: #f1f5f9;
+            border-radius: 40px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .format-option {
+            flex: 1;
+            background: transparent;
+            border: none;
+            border-radius: 30px;
+            padding: 10px 6px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #64748b;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+            letter-spacing: 0.3px;
+            white-space: nowrap;
+        }
+
+        .format-option:active {
+            background: #e2e8f0;
+        }
+
+        .format-option.active {
+            background: #ffffff;
+            color: #0284c7;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+        }
+
+        .scoreboard {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .player-card {
+            flex: 1;
+            background: #ffffff;
+            border-radius: 28px;
+            padding: 20px 10px 22px;
+            box-shadow: inset 0 0 0 1px rgba(226, 232, 240, 0.8), 0 4px 10px -4px rgba(0, 0, 0, 0.02);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .player-card.active-server {
+            background: #f0f9ff;
+            box-shadow: inset 0 0 0 2px #bae6fd, 0 6px 14px -6px rgba(2, 132, 199, 0.2);
+        }
+
+        .player-card.winner-card {
+            background: #f0fdf4;
+            box-shadow: inset 0 0 0 2px #bbf7d0, 0 6px 14px -6px rgba(22, 163, 74, 0.15);
+        }
+
+        .player-card.winner-card .score-value {
+            color: #16a34a;
+        }
+
+        .player-card.flash {
+            animation: cardFlash 0.25s ease-out;
+        }
+
+        @keyframes cardFlash {
+            0% { transform: scale(1); }
+            40% { transform: scale(0.985); }
+            100% { transform: scale(1); }
+        }
+
+        /* 局点/赛点徽章 */
+        .match-point-badge {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            font-size: 0.65rem;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            padding: 3px 8px;
+            border-radius: 20px;
+            color: #ffffff;
+            animation: pulse 1.2s ease-in-out infinite;
+            z-index: 2;
+        }
+
+        .match-point-badge.game-point {
+            background: #f59e0b;
+            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4);
+        }
+
+        .match-point-badge.match-point {
+            background: #ef4444;
+            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.5);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.85; transform: scale(1.05); }
+        }
+
+        .player-name-input {
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #64748b;
+            margin-bottom: 10px;
+            background: #f8fafc;
+            padding: 6px 12px;
+            border-radius: 30px;
+            border: 1px solid #e2e8f0;
+            width: 90%;
+            text-align: center;
+            outline: none;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .player-name-input:focus {
+            border-color: #7dd3fc;
+            background: #ffffff;
+            color: #0f172a;
+        }
+
+        .player-card.active-server .player-name-input {
+            background: #e0f2fe;
+            border-color: #7dd3fc;
+            color: #0369a1;
+        }
+
+        .score-value {
+            font-size: 5.2rem;
+            font-weight: 700;
+            line-height: 1;
+            color: #0f172a;
+            margin: 4px 0 6px;
+            font-feature-settings: "tnum";
+            letter-spacing: -2px;
+            transition: transform 0.1s ease;
+        }
+
+        .player-card.active-server .score-value {
+            color: #0284c7;
+        }
+
+        .score-btn {
+            background: transparent;
+            border: none;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        .score-btn:active .score-value {
+            transform: scale(0.96);
+        }
+
+        .serve-indicator {
+            margin-top: 10px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            color: #94a3b8;
+            background: #f1f5f9;
+            padding: 5px 12px;
+            border-radius: 30px;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.15s;
+        }
+
+        .player-card.active-server .serve-indicator {
+            background: #bae6fd;
+            color: #0369a1;
+        }
+
+        .serve-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #cbd5e1;
+        }
+
+        .player-card.active-server .serve-dot {
+            background: #0284c7;
+        }
+
+        /* 局分大显示条 */
+        .game-score-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            background: #f8fafc;
+            border-radius: 60px;
+            padding: 16px 20px;
+            border: 1.5px solid #e2e8f0;
+            margin-bottom: 16px;
+            transition: all 0.3s;
+        }
+
+        .game-score-bar .gs-label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+        }
+
+        .game-score-bar .gs-value {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: #0f172a;
+            font-feature-settings: "tnum";
+            letter-spacing: -0.5px;
+        }
+
+        .game-score-bar .gs-sep {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #cbd5e1;
+        }
+
+        .game-score-bar .gs-target {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #0284c7;
+            background: #e0f2fe;
+            padding: 4px 10px;
+            border-radius: 20px;
+            margin-left: 4px;
+        }
+
+        /* 局间提示条 */
+        .between-games-bar {
+            margin-bottom: 16px;
+            background: #fffbeb;
+            border: 1.5px solid #fde68a;
+            color: #92400e;
+            font-weight: 600;
+            font-size: 0.85rem;
+            padding: 12px 16px;
+            border-radius: 60px;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .between-games-bar svg {
+            width: 16px;
+            height: 16px;
+            stroke: #d97706;
+            stroke-width: 2;
+            fill: none;
+            flex-shrink: 0;
+            pointer-events: none;
+        }
+
+        /* 确认开局按钮 */
+        .confirm-next-btn {
+            width: 100%;
+            background: #16a34a;
+            border: none;
+            border-radius: 60px;
+            padding: 18px 20px;
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: #ffffff;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: all 0.2s;
+            cursor: pointer;
+            box-shadow: 0 6px 18px rgba(22, 163, 74, 0.35);
+            font-family: inherit;
+            letter-spacing: 0.5px;
+            margin-bottom: 16px;
+            animation: confirmPulse 1.5s ease-in-out infinite;
+        }
+
+        .confirm-next-btn.show {
+            display: flex;
+        }
+
+        .confirm-next-btn:active {
+            background: #15803d;
+            transform: scale(0.98);
+        }
+
+        .confirm-next-btn svg {
+            width: 22px;
+            height: 22px;
+            stroke: #ffffff;
+            stroke-width: 2.5;
+            fill: none;
+            pointer-events: none;
+        }
+
+        @keyframes confirmPulse {
+            0%, 100% { box-shadow: 0 6px 18px rgba(22, 163, 74, 0.35); }
+            50% { box-shadow: 0 6px 24px rgba(22, 163, 74, 0.55); }
+        }
+
+        .undo-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 18px;
+        }
+
+        .undo-btn {
+            flex: 1;
+            background: #ffffff;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 60px;
+            padding: 14px 10px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #475569;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: all 0.15s;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
+            font-family: inherit;
+        }
+
+        .undo-btn:active {
+            background: #fef2f2;
+            border-color: #fecaca;
+            color: #dc2626;
+        }
+
+        .undo-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            background: #f8fafc;
+        }
+
+        .undo-btn:disabled:active {
+            background: #f8fafc;
+            border-color: #e2e8f0;
+            color: #475569;
+        }
+
+        .history-section {
+            margin-top: 16px;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 18px;
+        }
+
+        .history-title {
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #94a3b8;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 6px;
+        }
+
+        .history-title-left {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .history-title-left svg {
+            pointer-events: none;
+        }
+
+        .history-progress {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: #0284c7;
+            background: #e0f2fe;
+            padding: 3px 10px;
+            border-radius: 20px;
+            letter-spacing: 0.3px;
+        }
+
+        .history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 160px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .history-item {
+            background: #f8fafc;
+            border-radius: 16px;
+            padding: 10px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85rem;
+            border: 1px solid #e2e8f0;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .history-game {
+            font-weight: 600;
+            color: #64748b;
+            font-size: 0.75rem;
+        }
+
+        .history-score {
+            font-weight: 700;
+            color: #0f172a;
+            font-size: 0.95rem;
+            font-family: monospace;
+            letter-spacing: 0.5px;
+        }
+
+        .history-winner {
+            font-weight: 600;
+            color: #0284c7;
+            font-size: 0.8rem;
+            background: #e0f2fe;
+            padding: 3px 10px;
+            border-radius: 20px;
+        }
+
+        .history-empty {
+            color: #94a3b8;
+            font-size: 0.8rem;
+            text-align: center;
+            padding: 12px;
+            background: #f8fafc;
+            border-radius: 16px;
+            border: 1px dashed #e2e8f0;
+        }
+
+        .winner-message {
+            margin-top: 12px;
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            color: #166534;
+            font-weight: 500;
+            font-size: 0.9rem;
+            padding: 12px;
+            border-radius: 60px;
+            text-align: center;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .winner-message.match-over {
+            background: #fef3c7;
+            border-color: #fcd34d;
+            color: #92400e;
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        .reset-hint {
+            margin-top: 14px;
+            font-size: 0.75rem;
+            text-align: center;
+            color: #94a3b8;
+            letter-spacing: 0.3px;
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .reset-hint span {
+            background: #f1f5f9;
+            padding: 4px 10px;
+            border-radius: 30px;
+        }
+
+        .reset-hint a {
+            color: #0284c7;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .reset-hint a:active {
+            text-decoration: underline;
+        }
+
+        /* 轻量提示条 */
+        #toast {
+            position: fixed;
+            left: 50%;
+            bottom: 24px;
+            transform: translate(-50%, 10px);
+            opacity: 0;
+            pointer-events: none;
+            z-index: 100;
+            max-width: 86vw;
+            text-align: center;
+            background: rgba(30, 41, 59, 0.92);
+            color: #f8fafc;
+            font-size: 0.82rem;
+            padding: 9px 18px;
+            border-radius: 999px;
+            transition: opacity 0.25s, transform 0.25s;
+        }
+
+        #toast.show {
+            opacity: 1;
+            transform: translate(-50%, 0);
+        }
+    </style>
+</head>
+<body>
+    <div class="panel" id="panel">
+        <div class="match-header">
+            <div class="match-title">🏓 乒乓球裁判面板</div>
+            <div class="header-actions">
+                <button class="sound-btn" id="soundBtn" aria-label="开关音效" type="button">
+                    <!-- 有声图标（默认显示） -->
+                    <svg id="soundOnIcon" viewBox="0 0 24 24">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor" stroke="none"/>
+                        <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                    </svg>
+                    <!-- 静音图标（默认隐藏） -->
+                    <svg id="soundOffIcon" viewBox="0 0 24 24" style="display: none;">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor" stroke="none"/>
+                        <line x1="23" y1="9" x2="17" y2="15" />
+                        <line x1="17" y1="9" x2="23" y2="15" />
+                    </svg>
+                </button>
+                <button class="reset-btn" id="resetAllBtn" aria-label="重置所有比分" type="button">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M1 4v6h6" />
+                        <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+                    </svg>
+                    重置
+                </button>
+            </div>
+        </div>
+
+        <!-- 赛制选择器 -->
+        <div class="format-selector" id="formatSelector">
+            <button class="format-option" data-format="1" aria-label="一局定胜负" type="button">一局</button>
+            <button class="format-option" data-format="2" aria-label="三局两胜" type="button">三局两胜</button>
+            <button class="format-option active" data-format="3" aria-label="五局三胜" type="button">五局三胜</button>
+            <button class="format-option" data-format="4" aria-label="七局四胜" type="button">七局四胜</button>
+        </div>
+
+        <div class="scoreboard">
+            <div class="player-card" id="playerACard">
+                <div class="match-point-badge" id="playerABadge" style="display: none;"></div>
+                <input type="text" class="player-name-input" id="playerAName" value="选手 A" maxlength="8" aria-label="选手A姓名">
+                <button class="score-btn" id="playerAScoreBtn" aria-label="增加A的分数" type="button">
+                    <div class="score-value" id="playerAScore">0</div>
+                </button>
+                <div class="serve-indicator" id="playerAServe">
+                    <span class="serve-dot"></span> 发球
+                </div>
+            </div>
+
+            <div class="player-card" id="playerBCard">
+                <div class="match-point-badge" id="playerBBadge" style="display: none;"></div>
+                <input type="text" class="player-name-input" id="playerBName" value="选手 B" maxlength="8" aria-label="选手B姓名">
+                <button class="score-btn" id="playerBScoreBtn" aria-label="增加B的分数" type="button">
+                    <div class="score-value" id="playerBScore">0</div>
+                </button>
+                <div class="serve-indicator" id="playerBServe">
+                    <span class="serve-dot"></span> 发球
+                </div>
+            </div>
+        </div>
+
+        <!-- 局分大显示条 -->
+        <div class="game-score-bar" id="gameScoreBar">
+            <span class="gs-label">局分</span>
+            <span class="gs-value" id="gsA">0</span>
+            <span class="gs-sep">:</span>
+            <span class="gs-value" id="gsB">0</span>
+            <span class="gs-target" id="gsTarget">五局三胜</span>
+        </div>
+
+        <!-- 局间提示条 -->
+        <div class="between-games-bar" id="betweenGamesBar" style="display: none;">
+            <svg viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <span id="betweenGamesText">本局结束，确认后开始下一局</span>
+        </div>
+
+        <!-- 确认开局按钮 -->
+        <button class="confirm-next-btn" id="confirmNextBtn" aria-label="确认开始下一局" type="button">
+            <svg viewBox="0 0 24 24">
+                <polyline points="20 6 9 17 4 12" stroke="currentColor" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span id="confirmNextText">确认开局</span>
+        </button>
+
+        <div class="undo-row">
+            <button class="undo-btn" id="undoBtn" aria-label="撤销上一分" type="button">
+                撤销上一分
+            </button>
+        </div>
+
+        <div class="history-section" id="historySection">
+            <div class="history-title">
+                <div class="history-title-left">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    每局结果
+                </div>
+                <div class="history-progress" id="historyProgress">目标 3 局</div>
+            </div>
+            <div class="history-list" id="historyList">
+                <div class="history-empty">暂无比赛记录</div>
+            </div>
+        </div>
+
+        <div id="winnerMessage" class="winner-message" style="display: none;"></div>
+
+        <div class="reset-hint">
+            <span>点击卡片加分</span>
+            <span>单击重置 = 全部重来</span>
+            <span>长按重置 = 只清本局</span>
+            <span><a href="./">换样式</a></span>
+        </div>
+    </div>
+
+    <div id="toast"></div>
+
+    <script>
+        (function() {
+            // ---------- 音效模块 (Web Audio API) ----------
+            let audioCtx = null;
+            let soundEnabled = true;
+
+            function initAudioContext() {
+                if (audioCtx) return audioCtx;
+                try {
+                    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                    if (!AudioContextClass) return null;
+                    audioCtx = new AudioContextClass();
+                } catch (e) {
+                    console.warn('Web Audio API 不可用', e);
+                    audioCtx = null;
+                }
+                return audioCtx;
+            }
+
+            function playScoreSound() {
+                if (!soundEnabled) return;
+                const ctx = initAudioContext();
+                if (!ctx) return;
+                if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+
+                try {
+                    const now = ctx.currentTime;
+                    
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(880, now);
+                    osc.frequency.exponentialRampToValueAtTime(1400, now + 0.02);
+                    osc.frequency.exponentialRampToValueAtTime(880, now + 0.08);
+                    
+                    gain.gain.setValueAtTime(0, now);
+                    gain.gain.linearRampToValueAtTime(0.25, now + 0.005);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+                    
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    
+                    osc.start(now);
+                    osc.stop(now + 0.13);
+                    
+                    const osc2 = ctx.createOscillator();
+                    const gain2 = ctx.createGain();
+                    
+                    osc2.type = 'triangle';
+                    osc2.frequency.setValueAtTime(320, now);
+                    osc2.frequency.exponentialRampToValueAtTime(180, now + 0.08);
+                    
+                    gain2.gain.setValueAtTime(0, now);
+                    gain2.gain.linearRampToValueAtTime(0.15, now + 0.005);
+                    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+                    
+                    osc2.connect(gain2);
+                    gain2.connect(ctx.destination);
+                    
+                    osc2.start(now);
+                    osc2.stop(now + 0.11);
+                } catch (e) {
+                    console.warn('播放音效失败', e);
+                }
+            }
+
+            function playWinSound() {
+                if (!soundEnabled) return;
+                const ctx = initAudioContext();
+                if (!ctx) return;
+                if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+                
+                try {
+                    const now = ctx.currentTime;
+                    const notes = [523.25, 659.25, 783.99];
+                    notes.forEach((freq, i) => {
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        const start = now + i * 0.08;
+                        
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(freq, start);
+                        
+                        gain.gain.setValueAtTime(0, start);
+                        gain.gain.linearRampToValueAtTime(0.2, start + 0.01);
+                        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.18);
+                        
+                        osc.connect(gain);
+                        gain.connect(ctx.destination);
+                        osc.start(start);
+                        osc.stop(start + 0.2);
+                    });
+                } catch (e) {}
+            }
+
+            function playUndoSound() {
+                if (!soundEnabled) return;
+                const ctx = initAudioContext();
+                if (!ctx) return;
+                if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+                
+                try {
+                    const now = ctx.currentTime;
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(660, now);
+                    osc.frequency.exponentialRampToValueAtTime(330, now + 0.1);
+                    
+                    gain.gain.setValueAtTime(0, now);
+                    gain.gain.linearRampToValueAtTime(0.15, now + 0.01);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+                    
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.16);
+                } catch (e) {}
+            }
+
+            // ---------- 状态管理 ----------
+            let scoreA = 0;
+            let scoreB = 0;
+            let gameScoreA = 0;
+            let gameScoreB = 0;
+            
+            let isAServing = true;
+            let gameFirstServer = true;   // 本局先发球方：下一局由对方先发（ITTF 2.13.6）
+            let serveCount = 0;
+            let isDeuce = false;
+            
+            let pendingGameResult = null;
+            let isProcessingWin = false;
+            
+            let gameHistory = [];
+            let stateStack = [];
+            
+            let gamesToWin = 3;
+            let pointsToWin = 11;
+            
+            const formatNames = {
+                1: '一局定胜负',
+                2: '三局两胜',
+                3: '五局三胜',
+                4: '七局四胜'
+            };
+
+            const playerAScoreEl = document.getElementById('playerAScore');
+            const playerBScoreEl = document.getElementById('playerBScore');
+            const playerACard = document.getElementById('playerACard');
+            const playerBCard = document.getElementById('playerBCard');
+            const playerAScoreBtn = document.getElementById('playerAScoreBtn');
+            const playerBScoreBtn = document.getElementById('playerBScoreBtn');
+            const resetAllBtn = document.getElementById('resetAllBtn');
+            const undoBtn = document.getElementById('undoBtn');
+            const winnerMessage = document.getElementById('winnerMessage');
+            const playerANameInput = document.getElementById('playerAName');
+            const playerBNameInput = document.getElementById('playerBName');
+            const historyList = document.getElementById('historyList');
+            const playerABadge = document.getElementById('playerABadge');
+            const playerBBadge = document.getElementById('playerBBadge');
+            const formatSelector = document.getElementById('formatSelector');
+            const historyProgress = document.getElementById('historyProgress');
+            const betweenGamesBar = document.getElementById('betweenGamesBar');
+            const betweenGamesText = document.getElementById('betweenGamesText');
+            const confirmNextBtn = document.getElementById('confirmNextBtn');
+            const confirmNextText = document.getElementById('confirmNextText');
+            const gsA = document.getElementById('gsA');
+            const gsB = document.getElementById('gsB');
+            const gsTarget = document.getElementById('gsTarget');
+            const soundBtn = document.getElementById('soundBtn');
+            const soundOnIcon = document.getElementById('soundOnIcon');
+            const soundOffIcon = document.getElementById('soundOffIcon');
+            const toastEl = document.getElementById('toast');
+
+            // ---------- 辅助函数 ----------
+            function getPlayerAName() {
+                return playerANameInput.value.trim() || '选手 A';
+            }
+            
+            function getPlayerBName() {
+                return playerBNameInput.value.trim() || '选手 B';
+            }
+
+            // 轻量提示条
+            let toastTimer = null;
+            function showToast(msg) {
+                toastEl.textContent = msg;
+                toastEl.classList.add('show');
+                clearTimeout(toastTimer);
+                toastTimer = setTimeout(() => toastEl.classList.remove('show'), 2000);
+            }
+
+            function pushState() {
+                stateStack.push({
+                    scoreA,
+                    scoreB,
+                    isAServing,
+                    serveCount,
+                    isDeuce
+                });
+                if (stateStack.length > 200) {
+                    stateStack.shift();
+                }
+                updateUndoButton();
+            }
+
+            function updateUndoButton() {
+                undoBtn.disabled = stateStack.length === 0;
+            }
+
+            function undoLastPoint() {
+                if (stateStack.length === 0) {
+                    showToast('没有可撤销的分数');
+                    return;
+                }
+                
+                if (pendingGameResult) {
+                    const { winner } = pendingGameResult;
+                    
+                    if (winner === 'A') {
+                        gameScoreA -= 1;
+                    } else {
+                        gameScoreB -= 1;
+                    }
+                    
+                    gameHistory.pop();
+                    renderHistory();
+                    updateGameScoreDisplay();
+                    
+                    pendingGameResult = null;
+                    betweenGamesBar.style.display = 'none';
+                    confirmNextBtn.classList.remove('show');
+                    winnerMessage.style.display = 'none';
+                    winnerMessage.className = 'winner-message';
+                    
+                    playerACard.classList.remove('winner-card');
+                    playerBCard.classList.remove('winner-card');
+                }
+                
+                const prev = stateStack.pop();
+                scoreA = prev.scoreA;
+                scoreB = prev.scoreB;
+                isAServing = prev.isAServing;
+                serveCount = prev.serveCount;
+                isDeuce = prev.isDeuce;
+                
+                updateScoreDisplay(false);
+                updateServeIndicator();
+                updateMatchPointBadge();
+                updateUndoButton();
+                playUndoSound();
+            }
+
+            function updateServeIndicator() {
+                if (isAServing) {
+                    playerACard.classList.add('active-server');
+                    playerBCard.classList.remove('active-server');
+                } else {
+                    playerBCard.classList.add('active-server');
+                    playerACard.classList.remove('active-server');
+                }
+            }
+
+            function updateGameScoreDisplay() {
+                gsA.textContent = gameScoreA;
+                gsB.textContent = gameScoreB;
+                gsTarget.textContent = formatNames[gamesToWin] || '';
+                historyProgress.textContent = `目标 ${gamesToWin} 局`;
+            }
+
+            function renderHistory() {
+                if (gameHistory.length === 0) {
+                    historyList.innerHTML = '<div class="history-empty">暂无比赛记录</div>';
+                    return;
+                }
+                
+                historyList.innerHTML = gameHistory.map((item, index) => {
+                    const gameNum = index + 1;
+                    return `
+                        <div class="history-item">
+                            <span class="history-game">第${gameNum}局</span>
+                            <span class="history-score">${item.scoreA} : ${item.scoreB}</span>
+                            <span class="history-winner">${item.winner} 胜</span>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            function addHistory(winnerName, finalScoreA, finalScoreB) {
+                gameHistory.push({
+                    winner: winnerName,
+                    scoreA: finalScoreA,
+                    scoreB: finalScoreB
+                });
+                renderHistory();
+            }
+
+            function updateMatchPointBadge() {
+                playerABadge.style.display = 'none';
+                playerBBadge.style.display = 'none';
+                
+                if (pendingGameResult) return;
+                
+                let isGamePointA = false;
+                let isGamePointB = false;
+                
+                if (scoreA >= 10 && scoreB >= 10) {
+                    if (scoreA - scoreB === 1) {
+                        isGamePointA = true;
+                    } else if (scoreB - scoreA === 1) {
+                        isGamePointB = true;
+                    }
+                } else {
+                    if (scoreA + 1 >= pointsToWin && (scoreA + 1 - scoreB) >= 2) {
+                        isGamePointA = true;
+                    }
+                    if (scoreB + 1 >= pointsToWin && (scoreB + 1 - scoreA) >= 2) {
+                        isGamePointB = true;
+                    }
+                }
+                
+                const isMatchPointA = isGamePointA && (gameScoreA + 1 >= gamesToWin);
+                const isMatchPointB = isGamePointB && (gameScoreB + 1 >= gamesToWin);
+                
+                if (isGamePointA) {
+                    playerABadge.style.display = 'block';
+                    playerABadge.textContent = isMatchPointA ? '赛点' : '局点';
+                    playerABadge.className = 'match-point-badge ' + (isMatchPointA ? 'match-point' : 'game-point');
+                }
+                
+                if (isGamePointB) {
+                    playerBBadge.style.display = 'block';
+                    playerBBadge.textContent = isMatchPointB ? '赛点' : '局点';
+                    playerBBadge.className = 'match-point-badge ' + (isMatchPointB ? 'match-point' : 'game-point');
+                }
+            }
+
+            function autoSwitchServe() {
+                if (scoreA >= 10 && scoreB >= 10) {
+                    // 平分后每 1 球换发。进入平分时（10:10）恰好走完一个 2 分轮次，发球权照常交给对方
+                    isDeuce = true;
+                    isAServing = !isAServing;
+                    serveCount = 0;
+                } else {
+                    serveCount++;
+                    if (serveCount >= 2) {
+                        isAServing = !isAServing;
+                        serveCount = 0;
+                    }
+                }
+                
+                updateServeIndicator();
+            }
+
+            // 局末 / 赛末提示（checkForWin 与刷新恢复共用同一套界面）
+            function showGameEndUI() {
+                if (!pendingGameResult) return;
+                const { winner, winnerName, isMatchOver } = pendingGameResult;
+                
+                if (winner === 'A') {
+                    playerACard.classList.add('winner-card');
+                    playerBCard.classList.remove('winner-card');
+                } else {
+                    playerBCard.classList.add('winner-card');
+                    playerACard.classList.remove('winner-card');
+                }
+                
+                betweenGamesBar.style.display = 'flex';
+                if (isMatchOver) {
+                    betweenGamesText.textContent = `整场比赛结束！${winnerName} 获胜`;
+                    confirmNextText.textContent = '开始新比赛';
+                } else {
+                    betweenGamesText.textContent = `${winnerName} 赢得本局，确认后开始下一局`;
+                    confirmNextText.textContent = '确认开局';
+                }
+                
+                confirmNextBtn.classList.add('show');
+                
+                winnerMessage.style.display = 'block';
+                if (isMatchOver) {
+                    winnerMessage.className = 'winner-message match-over';
+                    winnerMessage.textContent = `🏆 ${winnerName} 赢得整场比赛！`;
+                } else {
+                    winnerMessage.className = 'winner-message';
+                    winnerMessage.textContent = `🎉 ${winnerName} 赢得本局！`;
+                }
+            }
+
+            function checkForWin() {
+                if (isProcessingWin || pendingGameResult) return;
+                
+                const diff = Math.abs(scoreA - scoreB);
+                const maxScore = Math.max(scoreA, scoreB);
+                
+                if (maxScore >= pointsToWin && diff >= 2) {
+                    const winner = scoreA > scoreB ? 'A' : 'B';
+                    const winnerName = winner === 'A' ? getPlayerAName() : getPlayerBName();
+                    
+                    const finalScoreA = scoreA;
+                    const finalScoreB = scoreB;
+                    
+                    if (winner === 'A') {
+                        gameScoreA += 1;
+                    } else {
+                        gameScoreB += 1;
+                    }
+                    
+                    addHistory(winnerName, finalScoreA, finalScoreB);
+                    updateGameScoreDisplay();
+                    
+                    const isMatchOver = gameScoreA >= gamesToWin || gameScoreB >= gamesToWin;
+                    
+                    pendingGameResult = {
+                        winner,
+                        winnerName,
+                        finalScoreA,
+                        finalScoreB,
+                        isMatchOver
+                    };
+                    
+                    showGameEndUI();
+                    
+                    updateMatchPointBadge();
+                    updateUndoButton();
+                    playWinSound();
+                    saveGame();
+                }
+            }
+
+            function confirmNextGame() {
+                if (!pendingGameResult) return;
+                
+                const { isMatchOver } = pendingGameResult;
+                
+                playerACard.classList.remove('winner-card');
+                playerBCard.classList.remove('winner-card');
+                betweenGamesBar.style.display = 'none';
+                confirmNextBtn.classList.remove('show');
+                winnerMessage.style.display = 'none';
+                winnerMessage.className = 'winner-message';
+                
+                if (isMatchOver) {
+                    scoreA = 0;
+                    scoreB = 0;
+                    gameScoreA = 0;
+                    gameScoreB = 0;
+                    serveCount = 0;
+                    isDeuce = false;
+                    isAServing = true;
+                    gameFirstServer = true;
+                    gameHistory = [];
+                    pendingGameResult = null;
+                    
+                    updateScoreDisplay(false);
+                    updateServeIndicator();
+                    updateGameScoreDisplay();
+                    renderHistory();
+                    updateMatchPointBadge();
+                    stateStack = [];
+                    updateUndoButton();
+                } else {
+                    scoreA = 0;
+                    scoreB = 0;
+                    serveCount = 0;
+                    isDeuce = false;
+                    // 本局先发球者下一局先接发球 —— 先发球权在两方之间轮换，与谁赢下本局无关
+                    gameFirstServer = !gameFirstServer;
+                    isAServing = gameFirstServer;
+                    
+                    updateScoreDisplay(false);
+                    updateServeIndicator();
+                    
+                    pendingGameResult = null;
+                    
+                    stateStack = [];
+                    updateUndoButton();
+                }
+            }
+
+            function updateScoreDisplay(checkWin = true) {
+                playerAScoreEl.textContent = scoreA;
+                playerBScoreEl.textContent = scoreB;
+                updateMatchPointBadge();
+                if (checkWin) {
+                    checkForWin();
+                }
+                saveGame();
+            }
+
+            function flashCard(card) {
+                card.classList.remove('flash');
+                void card.offsetWidth;
+                card.classList.add('flash');
+                setTimeout(() => card.classList.remove('flash'), 260);
+            }
+
+            function addScoreA() {
+                if (isProcessingWin || pendingGameResult) return;
+                pushState();
+                scoreA += 1;
+                updateScoreDisplay(false);
+                autoSwitchServe();
+                checkForWin();
+                playScoreSound();
+                flashCard(playerACard);
+            }
+
+            function addScoreB() {
+                if (isProcessingWin || pendingGameResult) return;
+                pushState();
+                scoreB += 1;
+                updateScoreDisplay(false);
+                autoSwitchServe();
+                checkForWin();
+                playScoreSound();
+                flashCard(playerBCard);
+            }
+
+            function resetAll() {
+                isProcessingWin = false;
+                winnerMessage.style.display = 'none';
+                winnerMessage.className = 'winner-message';
+                scoreA = 0;
+                scoreB = 0;
+                gameScoreA = 0;
+                gameScoreB = 0;
+                isAServing = true;
+                gameFirstServer = true;
+                serveCount = 0;
+                isDeuce = false;
+                gameHistory = [];
+                stateStack = [];
+                pendingGameResult = null;
+                
+                playerACard.classList.remove('winner-card');
+                playerBCard.classList.remove('winner-card');
+                betweenGamesBar.style.display = 'none';
+                confirmNextBtn.classList.remove('show');
+                
+                updateScoreDisplay(false);
+                updateServeIndicator();
+                updateGameScoreDisplay();
+                renderHistory();
+                updateUndoButton();
+                updateMatchPointBadge();
+            }
+
+            function resetCurrentScore() {
+                isProcessingWin = false;
+                winnerMessage.style.display = 'none';
+                winnerMessage.className = 'winner-message';
+                scoreA = 0;
+                scoreB = 0;
+                serveCount = 0;
+                isDeuce = false;
+                isAServing = gameFirstServer;
+                stateStack = [];
+                pendingGameResult = null;
+                
+                playerACard.classList.remove('winner-card');
+                playerBCard.classList.remove('winner-card');
+                betweenGamesBar.style.display = 'none';
+                confirmNextBtn.classList.remove('show');
+                
+                updateScoreDisplay(false);
+                updateServeIndicator();
+                updateUndoButton();
+                updateMatchPointBadge();
+            }
+
+            function setFormat(games) {
+                gamesToWin = games;
+                
+                document.querySelectorAll('.format-option').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                document.querySelector(`.format-option[data-format="${games}"]`).classList.add('active');
+                
+                resetAll();
+                updateGameScoreDisplay();
+            }
+
+            // 音效开关 UI（切换两个 SVG 图标的显示/隐藏）
+            function updateSoundIcon() {
+                if (soundEnabled) {
+                    soundOnIcon.style.display = '';
+                    soundOffIcon.style.display = 'none';
+                    soundBtn.classList.remove('muted');
+                } else {
+                    soundOnIcon.style.display = 'none';
+                    soundOffIcon.style.display = '';
+                    soundBtn.classList.add('muted');
+                }
+                saveGame();
+            }
+
+            // ---------- 存档 / 读档（刷新、误触返回后不丢比分） ----------
+            const SAVE_KEY = 'ppscore2.v1';
+
+            function saveGame() {
+                try {
+                    localStorage.setItem(SAVE_KEY, JSON.stringify({
+                        scoreA, scoreB, gameScoreA, gameScoreB,
+                        isAServing, gameFirstServer, serveCount, isDeuce,
+                        gameHistory, gamesToWin, pendingGameResult, stateStack,
+                        nameA: playerANameInput.value,
+                        nameB: playerBNameInput.value,
+                        soundEnabled
+                    }));
+                } catch (e) {}
+            }
+
+            function loadGame() {
+                try {
+                    const raw = localStorage.getItem(SAVE_KEY);
+                    if (!raw) return false;
+                    const o = JSON.parse(raw);
+                    if (!o || typeof o !== 'object') return false;
+
+                    scoreA = o.scoreA || 0;
+                    scoreB = o.scoreB || 0;
+                    gameScoreA = o.gameScoreA || 0;
+                    gameScoreB = o.gameScoreB || 0;
+                    isAServing = o.isAServing !== undefined ? !!o.isAServing : true;
+                    gameFirstServer = o.gameFirstServer !== undefined ? !!o.gameFirstServer : true;
+                    serveCount = o.serveCount || 0;
+                    isDeuce = !!o.isDeuce;
+                    gameHistory = Array.isArray(o.gameHistory) ? o.gameHistory : [];
+                    gamesToWin = o.gamesToWin || 3;
+                    pendingGameResult = o.pendingGameResult || null;
+                    stateStack = Array.isArray(o.stateStack) ? o.stateStack : [];
+                    if (typeof o.nameA === 'string') playerANameInput.value = o.nameA;
+                    if (typeof o.nameB === 'string') playerBNameInput.value = o.nameB;
+                    soundEnabled = o.soundEnabled !== false;
+                    return true;
+                } catch (e) { return false; }
+            }
+
+            // ---------- 事件绑定 ----------
+
+            // 音效开关（直接绑定在按钮上，SVG 已禁用 pointer-events）
+            soundBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                soundEnabled = !soundEnabled;
+                updateSoundIcon();
+                // 开启音效时播放一次反馈音
+                if (soundEnabled) {
+                    // 确保 AudioContext 已初始化（用户点击属于有效交互）
+                    initAudioContext();
+                    // 略微延迟，避免切换瞬间的杂音
+                    setTimeout(() => playScoreSound(), 30);
+                }
+            });
+
+            // 选手改名后立即存档
+            playerANameInput.addEventListener('input', saveGame);
+            playerBNameInput.addEventListener('input', saveGame);
+
+            playerAScoreBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                addScoreA();
+            });
+
+            playerBScoreBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                addScoreB();
+            });
+
+            confirmNextBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                confirmNextGame();
+            });
+
+            undoBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                undoLastPoint();
+            });
+
+            formatSelector.addEventListener('click', (e) => {
+                const target = e.target.closest('.format-option');
+                if (!target) return;
+                const games = parseInt(target.dataset.format, 10);
+                if (games === gamesToWin) return;
+                
+                if (gameScoreA > 0 || gameScoreB > 0 || scoreA > 0 || scoreB > 0 || pendingGameResult) {
+                    if (!confirm('切换赛制将重置当前比赛，确定继续吗？')) {
+                        return;
+                    }
+                }
+                setFormat(games);
+            });
+
+            // 「重置」按钮：单击 = 二次确认后清全部；长按 600ms = 只清本局比分。
+            // 统一用 pointer 事件（touch 与 mouse 各绑一套的话，touchend 之后浏览器补发的
+            // mousedown 会把长按标记冲掉，导致长按完又执行一次 resetAll 把整场清光）。
+            // isLongPress 只在每次按下时复位，不用定时器清除，避免 click 派发延迟造成误判。
+            let longPressTimer = null;
+            let isLongPress = false;
+
+            function startLongPress() {
+                isLongPress = false;
+                clearTimeout(longPressTimer);
+                longPressTimer = setTimeout(() => {
+                    isLongPress = true;
+                    resetCurrentScore();
+                    showToast('已清除本局比分');
+                }, 600);
+            }
+
+            function cancelLongPress() {
+                clearTimeout(longPressTimer);
+            }
+
+            resetAllBtn.addEventListener('click', (e) => {
+                if (isLongPress) {          // 长按已经处理过，忽略随之而来的 click
+                    isLongPress = false;
+                    return;
+                }
+                e.preventDefault();
+                if (!confirm('重新比赛将清除比分、局分与全部比赛记录，确定继续吗？')) return;
+                resetAll();
+                showToast('已重新开始');
+            });
+
+            resetAllBtn.addEventListener('pointerdown', startLongPress);
+            resetAllBtn.addEventListener('pointerup', cancelLongPress);
+            resetAllBtn.addEventListener('pointercancel', cancelLongPress);
+            resetAllBtn.addEventListener('pointerleave', cancelLongPress);
+
+            // 键盘快捷键
+            document.addEventListener('keydown', (e) => {
+                if (e.target.tagName === 'INPUT') return;
+                if (e.key === 'a' || e.key === 'A') {
+                    addScoreA();
+                } else if (e.key === 'b' || e.key === 'B') {
+                    addScoreB();
+                } else if (e.key === 'z' || e.key === 'Z') {
+                    undoLastPoint();
+                } else if (e.key === ' ' || e.key === 'Enter') {
+                    if (pendingGameResult) {
+                        e.preventDefault();
+                        confirmNextGame();
+                    }
+                } else if (e.key === 'm' || e.key === 'M') {
+                    // 键盘切换音效
+                    soundEnabled = !soundEnabled;
+                    updateSoundIcon();
+                }
+            });
+
+            // 首次用户交互时初始化 AudioContext
+            function initAudioOnFirstInteraction() {
+                const handler = () => {
+                    initAudioContext();
+                    document.removeEventListener('touchstart', handler);
+                    document.removeEventListener('click', handler);
+                };
+                document.addEventListener('touchstart', handler, { once: true });
+                document.addEventListener('click', handler, { once: true });
+            }
+            initAudioOnFirstInteraction();
+
+            // ---------- 初始化 ----------
+            function init() {
+                scoreA = 0;
+                scoreB = 0;
+                gameScoreA = 0;
+                gameScoreB = 0;
+                isAServing = true;
+                gameFirstServer = true;
+                serveCount = 0;
+                isDeuce = false;
+                gameHistory = [];
+                stateStack = [];
+                isProcessingWin = false;
+                pendingGameResult = null;
+                gamesToWin = 3;
+                
+                loadGame();                 // 读档会覆盖上面的默认值
+                
+                winnerMessage.style.display = 'none';
+                winnerMessage.className = 'winner-message';
+                betweenGamesBar.style.display = 'none';
+                confirmNextBtn.classList.remove('show');
+                playerACard.classList.remove('winner-card');
+                playerBCard.classList.remove('winner-card');
+                
+                document.querySelectorAll('.format-option').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                const fmtBtn = document.querySelector(`.format-option[data-format="${gamesToWin}"]`)
+                            || document.querySelector('.format-option[data-format="3"]');
+                fmtBtn.classList.add('active');
+                
+                updateScoreDisplay(false);
+                updateServeIndicator();
+                updateGameScoreDisplay();
+                renderHistory();
+                updateUndoButton();
+                updateMatchPointBadge();
+                updateSoundIcon();
+                
+                if (pendingGameResult) showGameEndUI();   // 刷新时正处于局间，恢复提示条
+            }
+
+            init();
+        })();
+    </script>
+</body>
+</html>
